@@ -28,7 +28,7 @@ practise one rollback. Then remove the Postgres public TCP proxy.
 
 ## Open items
 
-- **Postgres public TCP proxy.** Added in Step 3 so the laptop could run migrations (`MIGRATE_DATABASE_URL`). Owner was advised to delete it for the break; if it is gone and is needed again, re-add it (Postgres → Settings → Networking → TCP Proxy, port 5432) and update `MIGRATE_DATABASE_URL`, since the port may change. Step 7 makes it unnecessary.
+- **Postgres public TCP proxy: deleted 2026-10-04** (verified: the laptop cannot reach the database; the live app still can, over the private network). `MIGRATE_DATABASE_URL` and the local `DATABASE_URL` in `.env` are therefore stale. If Step 7 needs the laptop to reach the database before CI runs migrations, re-add it (Postgres → Settings → Networking → TCP Proxy, port 5432) and update both URLs in `.env` with the new host and port. Aim: CI runs migrations, so it never comes back.
 - **`DEV_SPACE_ID`** on the Railway `api` service: owner was asked to delete it after Step 5. Unused by the code either way; check and remove if still there.
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
