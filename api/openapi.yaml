@@ -1,0 +1,119 @@
+openapi: 3.0.3
+info:
+  title: Rail Canvas API
+  version: 0.1.0
+
+# Inlined per response (not components/responses) so every generated error type has one shape.
+x-error-response: &error
+  description: Error
+  content:
+    application/json:
+      schema: { $ref: "#/components/schemas/Error" }
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: The service is up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /canvases:
+    get:
+      operationId: listCanvases
+      responses:
+        "200":
+          description: Canvases in the caller's space, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CanvasList" }
+        "401": *error
+    post:
+      operationId: createCanvas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCanvasRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Canvas" }
+        "400": *error
+        "401": *error
+
+  /canvases/{canvasId}/board:
+    get:
+      operationId: getCanvasBoard
+      description: |
+        The whole board: width × height bytes, row by row, one palette index
+        per cell. 0 is the background.
+      parameters:
+        - name: canvasId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The board
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": *error
+        "404": *error
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+    Health:
+      type: object
+      required: [status, env]
+      properties:
+        status: { type: string }
+        env: { type: string }
+
+    Palette:
+      type: object
+      required: [id, colors]
+      properties:
+        id: { type: string }
+        colors:
+          type: array
+          description: Hex colors. A cell's byte is an index into this list.
+          items: { type: string }
+
+    Canvas:
+      type: object
+      required: [id, name, width, height, palette, cooldownSeconds, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        palette: { $ref: "#/components/schemas/Palette" }
+        cooldownSeconds: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    CanvasList:
+      type: object
+      required: [canvases]
+      properties:
+        canvases:
+          type: array
+          items: { $ref: "#/components/schemas/Canvas" }
+
+    CreateCanvasRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }

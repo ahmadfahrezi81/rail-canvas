@@ -1,6 +1,6 @@
 # One image, every binary under /app/. Each service picks one via its start command.
 
-FROM golang:1.23-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 COPY api/go.mod api/go.sum ./

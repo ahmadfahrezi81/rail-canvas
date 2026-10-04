@@ -12,7 +12,10 @@ const RequestIDHeader = "X-Request-Id"
 
 type ctxKey int
 
-const requestIDKey ctxKey = iota
+const (
+	requestIDKey ctxKey = iota
+	spaceIDKey
+)
 
 // RequestID ignores any client-sent id: it could be forged.
 func RequestID(next http.Handler) http.Handler {

@@ -1,27 +1,39 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"context"
 	"testing"
+
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 )
 
 func TestHealth(t *testing.T) {
-	rec := httptest.NewRecorder()
-	Health("test").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	res, err := NewServer("test", nil).GetHealth(context.Background(), apigen.GetHealthRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := res.(apigen.GetHealth200JSONResponse)
+	if !ok || got.Status != "ok" || got.Env != "test" {
+		t.Errorf("got %#v, want 200 with status ok, env test", res)
+	}
+}
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+func TestCanvasRoutesNeedASpace(t *testing.T) {
+	s := NewServer("test", nil)
+	ctx := context.Background()
+
+	if res, _ := s.ListCanvases(ctx, apigen.ListCanvasesRequestObject{}); !is[apigen.ListCanvases401JSONResponse](res) {
+		t.Errorf("list: got %T, want 401", res)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("Content-Type = %q, want application/json", ct)
+	if res, _ := s.CreateCanvas(ctx, apigen.CreateCanvasRequestObject{Body: &apigen.CreateCanvasRequest{Name: "x"}}); !is[apigen.CreateCanvas401JSONResponse](res) {
+		t.Errorf("create: got %T, want 401", res)
 	}
-	var body healthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
+	if res, _ := s.GetCanvasBoard(ctx, apigen.GetCanvasBoardRequestObject{}); !is[apigen.GetCanvasBoard401JSONResponse](res) {
+		t.Errorf("board: got %T, want 401", res)
 	}
-	if body.Status != "ok" || body.Env != "test" {
-		t.Errorf("body = %+v, want status ok, env test", body)
-	}
+}
+
+func is[T any](v any) bool {
+	_, ok := v.(T)
+	return ok
 }

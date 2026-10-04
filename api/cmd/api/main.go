@@ -12,11 +12,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/config"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/handler"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/httpx"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/middleware"
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/platform"
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/service"
 )
 
 func main() {
@@ -37,16 +41,28 @@ func run() error {
 	}).With("service", "api", "env", cfg.Env)
 	slog.SetDefault(logger)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := platform.NewPostgres(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	if cfg.DevSpaceID != uuid.Nil {
+		slog.Warn("DEV_SPACE_ID set: every request acts as the dev space", "space_id", cfg.DevSpaceID)
+	}
+
+	server := handler.NewServer(cfg.Env, service.NewCanvases(pool))
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           routes(cfg),
+		Handler:           routes(cfg, server),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		// No WriteTimeout: WebSockets are long-lived.
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -73,11 +89,12 @@ func run() error {
 	return nil
 }
 
-func routes(cfg config.Config) http.Handler {
+func routes(cfg config.Config, server *handler.Server) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recover)
+	r.Use(middleware.DevSpace(cfg.DevSpaceID))
 
 	// chi's defaults are plain text.
 	r.NotFound(httpx.NotFound)
@@ -85,7 +102,19 @@ func routes(cfg config.Config) http.Handler {
 		httpx.Error(w, r, http.StatusMethodNotAllowed, "method not allowed")
 	})
 
-	r.Get("/health", handler.Health(cfg.Env))
-
-	return r
+	strict := apigen.NewStrictHandlerWithOptions(server, nil, apigen.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			httpx.BadRequest(w, r, "invalid request body")
+		},
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			httpx.HandleError(w, r, r.Method+" "+r.URL.Path, err)
+		},
+	})
+	return apigen.HandlerWithOptions(strict, apigen.ChiServerOptions{
+		BaseRouter: r,
+		// Bad path params, e.g. a canvasId that is not a UUID.
+		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			httpx.BadRequest(w, r, err.Error())
+		},
+	})
 }
