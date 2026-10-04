@@ -1,6 +1,6 @@
 # Task 003 — The board in a browser
 
-**Status: built 2026-10-04 and shown locally (owner created a canvas from the page). `make check` covers the frontend build. Waiting on Cloudflare Pages and `CORS_ORIGINS`.**
+**Status: live 2026-10-04 at https://rail-canvas.pages.dev. CORS checked on the live API: the Pages URL and a preview subdomain are allowed, a foreign origin is not.**
 
 Found while building: TypeScript 7 dropped the JavaScript API `openapi-typescript` uses, so the frontend pins TypeScript 5.x.
 
