@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Meta — Instructions for Claude Code
 
+- **At the start of every session, read `.claude/STATUS.md`**: what is live, what is next, open items, and things that live outside git. **Update it at the end of every session.**
 - **The plan lives in Notion:** [Rail Canvas: Railway stress-test project](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9). It holds the data model, the build order (Steps 1–18) and every decision with its reason. Read the relevant section before starting a step. The Notion page is the **what and why**; `.claude/tasks/NNN_name.md` is the **how** for one step.
 - **Build one step at a time, in order.** Later steps are written assuming earlier ones exist. Do not pull a stretch feature (Redis, worker, replicas) forward.
 - **Keep this file updated** for structural changes only: a new package, a new layer, a new rule, a new command. Not for single endpoints or bug fixes.
