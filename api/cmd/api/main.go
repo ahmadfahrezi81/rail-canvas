@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/config"
@@ -50,15 +49,12 @@ func run() error {
 	}
 	defer pool.Close()
 
-	if cfg.DevSpaceID != uuid.Nil {
-		slog.Warn("DEV_SPACE_ID set: every request acts as the dev space", "space_id", cfg.DevSpaceID)
-	}
-
-	server := handler.NewServer(cfg.Env, service.NewCanvases(pool))
+	auth := service.NewAuth(pool)
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), service.NewCanvases(pool))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           routes(cfg, server),
+		Handler:           routes(cfg, server, auth),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		// No WriteTimeout: WebSockets are long-lived.
@@ -89,13 +85,14 @@ func run() error {
 	return nil
 }
 
-func routes(cfg config.Config, server *handler.Server) http.Handler {
+func routes(cfg config.Config, server *handler.Server, auth middleware.Authenticator) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recover)
+	r.Use(middleware.RealIP(cfg.RealIPHeader))
 	r.Use(middleware.CORS(cfg.CORSOrigins))
-	r.Use(middleware.DevSpace(cfg.DevSpaceID))
+	r.Use(middleware.Auth(auth))
 
 	// chi's defaults are plain text.
 	r.NotFound(httpx.NotFound)

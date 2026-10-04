@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.1.0
+  version: 0.2.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -10,10 +10,20 @@ x-error-response: &error
     application/json:
       schema: { $ref: "#/components/schemas/Error" }
 
+x-space-id: &spaceId
+  name: spaceId
+  in: path
+  required: true
+  schema: { type: string, format: uuid }
+
+security:
+  - bearer: []
+
 paths:
   /health:
     get:
       operationId: getHealth
+      security: []
       responses:
         "200":
           description: The service is up
@@ -21,18 +31,111 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Health" }
 
-  /canvases:
-    get:
-      operationId: listCanvases
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
-          description: Canvases in the caller's space, newest first
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400": *error
+        "401": *error
+        "429": *error
+
+  /auth/signup:
+    post:
+      operationId: signup
+      description: Create an account with an invite code. The new user joins the code's space.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201":
+          description: Signed up and logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400": *error
+        "409": *error
+        "429": *error
+
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        "204": { description: Logged out }
+        "401": *error
+
+  /me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: The caller and their spaces
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": *error
+
+  /spaces/join:
+    post:
+      operationId: joinSpace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinRequest" }
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpaceMembership" }
+        "400": *error
+        "401": *error
+        "429": *error
+
+  /spaces/{spaceId}/invites:
+    post:
+      operationId: createInvite
+      description: Owners only. The code is shown once and never stored in readable form.
+      parameters: [*spaceId]
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invite" }
+        "401": *error
+        "403": *error
+        "404": *error
+
+  /spaces/{spaceId}/canvases:
+    get:
+      operationId: listCanvases
+      parameters: [*spaceId]
+      responses:
+        "200":
+          description: Canvases in the space, newest first
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CanvasList" }
         "401": *error
+        "404": *error
     post:
       operationId: createCanvas
+      parameters: [*spaceId]
       requestBody:
         required: true
         content:
@@ -46,14 +149,16 @@ paths:
               schema: { $ref: "#/components/schemas/Canvas" }
         "400": *error
         "401": *error
+        "404": *error
 
-  /canvases/{canvasId}/board:
+  /spaces/{spaceId}/canvases/{canvasId}/board:
     get:
       operationId: getCanvasBoard
       description: |
         The whole board: width × height bytes, row by row, one palette index
         per cell. 0 is the background.
       parameters:
+        - *spaceId
         - name: canvasId
           in: path
           required: true
@@ -68,6 +173,11 @@ paths:
         "404": *error
 
 components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+
   schemas:
     Error:
       type: object
@@ -81,6 +191,68 @@ components:
       properties:
         status: { type: string }
         env: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    SignupRequest:
+      type: object
+      required: [code, email, displayName, password]
+      properties:
+        code: { type: string }
+        email: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 32 }
+        password: { type: string, minLength: 10, maxLength: 72 }
+
+    JoinRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+
+    User:
+      type: object
+      required: [id, email, displayName]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        displayName: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string, description: "Send as Authorization: Bearer <token>" }
+        user: { $ref: "#/components/schemas/User" }
+
+    SpaceMembership:
+      type: object
+      required: [id, name, slug, role]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        role: { type: string, enum: [owner, member] }
+
+    Me:
+      type: object
+      required: [user, spaces]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        spaces:
+          type: array
+          items: { $ref: "#/components/schemas/SpaceMembership" }
+
+    Invite:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string }
+        expiresAt: { type: string, format: date-time }
 
     Palette:
       type: object

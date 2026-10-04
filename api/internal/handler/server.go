@@ -2,94 +2,73 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"strings"
-	"unicode/utf8"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/middleware"
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/ratelimit"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/service"
 )
 
 // Server implements the interface generated from openapi.yaml.
 type Server struct {
 	env      string
+	auth     *service.Auth
+	spaces   *service.Spaces
 	canvases *service.Canvases
+
+	loginLimit   *ratelimit.Limiter // per email + IP: guessing one account's password
+	loginIPLimit *ratelimit.Limiter // per IP: trying many accounts
+	signupLimit  *ratelimit.Limiter
+	joinLimit    *ratelimit.Limiter
 }
 
 var _ apigen.StrictServerInterface = (*Server)(nil)
 
-func NewServer(env string, canvases *service.Canvases) *Server {
-	return &Server{env: env, canvases: canvases}
+func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases) *Server {
+	return &Server{
+		env: env, auth: auth, spaces: spaces, canvases: canvases,
+		// 5 attempts at once, then one every 12 seconds.
+		loginLimit:   ratelimit.New(12*time.Second, 5),
+		loginIPLimit: ratelimit.New(3*time.Second, 20),
+		signupLimit:  ratelimit.New(12*time.Second, 5),
+		joinLimit:    ratelimit.New(12*time.Second, 5),
+	}
 }
 
-var unauthorized = apigen.Error{Error: "unauthorized"}
+var (
+	errUnauthorized = apigen.Error{Error: "unauthorized"}
+	errNotFound     = apigen.Error{Error: "not found"}
+	errTooMany      = apigen.Error{Error: "too many attempts, try again in a minute"}
+)
 
 // GetHealth stays dependency-free: a DB blip must not get a healthy API restarted.
 func (s *Server) GetHealth(ctx context.Context, _ apigen.GetHealthRequestObject) (apigen.GetHealthResponseObject, error) {
 	return apigen.GetHealth200JSONResponse{Status: "ok", Env: s.env}, nil
 }
 
-func (s *Server) ListCanvases(ctx context.Context, _ apigen.ListCanvasesRequestObject) (apigen.ListCanvasesResponseObject, error) {
-	spaceID, ok := middleware.SpaceIDFrom(ctx)
-	if !ok {
-		return apigen.ListCanvases401JSONResponse(unauthorized), nil
-	}
-	list, err := s.canvases.List(ctx, spaceID)
-	if err != nil {
-		return nil, err
-	}
-	out := apigen.ListCanvases200JSONResponse{Canvases: make([]apigen.Canvas, 0, len(list))}
-	for _, c := range list {
-		out.Canvases = append(out.Canvases, toAPICanvas(c))
-	}
-	return out, nil
-}
+type access int
 
-func (s *Server) CreateCanvas(ctx context.Context, req apigen.CreateCanvasRequestObject) (apigen.CreateCanvasResponseObject, error) {
-	spaceID, ok := middleware.SpaceIDFrom(ctx)
-	if !ok {
-		return apigen.CreateCanvas401JSONResponse(unauthorized), nil
-	}
-	name := strings.TrimSpace(req.Body.Name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > 64 {
-		return apigen.CreateCanvas400JSONResponse{Error: "name must be 1 to 64 characters"}, nil
-	}
-	c, err := s.canvases.Create(ctx, spaceID, name)
-	if err != nil {
-		return nil, err
-	}
-	return apigen.CreateCanvas201JSONResponse(toAPICanvas(c)), nil
-}
+const (
+	allowed access = iota
+	noUser
+	notMember
+)
 
-func (s *Server) GetCanvasBoard(ctx context.Context, req apigen.GetCanvasBoardRequestObject) (apigen.GetCanvasBoardResponseObject, error) {
-	spaceID, ok := middleware.SpaceIDFrom(ctx)
+// member checks the caller belongs to the space. Not a member reads as not
+// found, so strangers cannot tell whether a space exists.
+func (s *Server) member(ctx context.Context, spaceID uuid.UUID) (service.User, access, error) {
+	user, ok := middleware.UserFrom(ctx)
 	if !ok {
-		return apigen.GetCanvasBoard401JSONResponse(unauthorized), nil
+		return user, noUser, nil
 	}
-	board, err := s.canvases.Board(ctx, spaceID, req.CanvasId)
+	_, err := s.spaces.Role(ctx, user.ID, spaceID)
 	if errors.Is(err, service.ErrNotFound) {
-		return apigen.GetCanvasBoard404JSONResponse{Error: "canvas not found"}, nil
+		return user, notMember, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	return apigen.GetCanvasBoard200ApplicationoctetStreamResponse{
-		Body:          bytes.NewReader(board),
-		ContentLength: int64(len(board)),
-	}, nil
-}
-
-func toAPICanvas(c service.Canvas) apigen.Canvas {
-	return apigen.Canvas{
-		Id:              c.ID,
-		Name:            c.Name,
-		Width:           c.Width,
-		Height:          c.Height,
-		Palette:         apigen.Palette{Id: c.Palette.ID, Colors: c.Palette.Colors},
-		CooldownSeconds: c.CooldownSeconds,
-		CreatedAt:       c.CreatedAt,
-	}
+	return user, allowed, err
 }

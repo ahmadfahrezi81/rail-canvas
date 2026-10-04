@@ -12,18 +12,19 @@ import (
 )
 
 const createCanvas = `-- name: CreateCanvas :one
-INSERT INTO canvases (space_id, name)
-VALUES ($1, $2)
-RETURNING id, space_id, name, width, height, palette, cooldown_seconds, created_at
+INSERT INTO canvases (space_id, name, created_by)
+VALUES ($1, $2, $3)
+RETURNING id, space_id, name, width, height, palette, cooldown_seconds, created_at, created_by
 `
 
 type CreateCanvasParams struct {
-	SpaceID uuid.UUID
-	Name    string
+	SpaceID   uuid.UUID
+	Name      string
+	CreatedBy uuid.NullUUID
 }
 
 func (q *Queries) CreateCanvas(ctx context.Context, arg CreateCanvasParams) (Canvas, error) {
-	row := q.db.QueryRow(ctx, createCanvas, arg.SpaceID, arg.Name)
+	row := q.db.QueryRow(ctx, createCanvas, arg.SpaceID, arg.Name, arg.CreatedBy)
 	var i Canvas
 	err := row.Scan(
 		&i.ID,
@@ -34,12 +35,13 @@ func (q *Queries) CreateCanvas(ctx context.Context, arg CreateCanvasParams) (Can
 		&i.Palette,
 		&i.CooldownSeconds,
 		&i.CreatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getCanvas = `-- name: GetCanvas :one
-SELECT id, space_id, name, width, height, palette, cooldown_seconds, created_at FROM canvases
+SELECT id, space_id, name, width, height, palette, cooldown_seconds, created_at, created_by FROM canvases
 WHERE id = $1 AND space_id = $2
 `
 
@@ -60,6 +62,7 @@ func (q *Queries) GetCanvas(ctx context.Context, arg GetCanvasParams) (Canvas, e
 		&i.Palette,
 		&i.CooldownSeconds,
 		&i.CreatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -101,7 +104,7 @@ func (q *Queries) ListCanvasPixels(ctx context.Context, arg ListCanvasPixelsPara
 }
 
 const listCanvases = `-- name: ListCanvases :many
-SELECT id, space_id, name, width, height, palette, cooldown_seconds, created_at FROM canvases
+SELECT id, space_id, name, width, height, palette, cooldown_seconds, created_at, created_by FROM canvases
 WHERE space_id = $1
 ORDER BY id DESC
 `
@@ -124,6 +127,7 @@ func (q *Queries) ListCanvases(ctx context.Context, spaceID uuid.UUID) ([]Canvas
 			&i.Palette,
 			&i.CooldownSeconds,
 			&i.CreatedAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}

@@ -14,7 +14,9 @@ type ctxKey int
 
 const (
 	requestIDKey ctxKey = iota
-	spaceIDKey
+	userKey
+	tokenKey
+	clientIPKey
 )
 
 // RequestID ignores any client-sent id: it could be forged.

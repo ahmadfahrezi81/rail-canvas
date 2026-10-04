@@ -14,7 +14,7 @@ ENV := set -a; [ -f .env ] && . ./.env; set +a;
 TEST_URL = $${MIGRATE_DATABASE_URL%/*}/rail_canvas_test
 
 .PHONY: help dev test test-db vet fmt check web-dev web-build generate build docker-build docker-run \
-	migrate-new migrate-up migrate-status db-app-password db-seed-dev db-test-setup
+	migrate-new migrate-up migrate-status db-app-password db-test-setup
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -70,9 +70,6 @@ migrate-status: ## Show applied migrations on MIGRATE_DATABASE_URL
 db-app-password: ## Let the app role log in with APP_DB_PASSWORD
 	@$(ENV) test -n "$$APP_DB_PASSWORD" || (echo "APP_DB_PASSWORD is empty in .env"; exit 1); \
 	echo "ALTER ROLE app WITH LOGIN PASSWORD :'pw';" | psql "$$MIGRATE_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v pw="$$APP_DB_PASSWORD" && echo "app can log in"
-
-db-seed-dev: ## Insert the dev space and print its id (for DEV_SPACE_ID)
-	@$(ENV) psql "$$MIGRATE_DATABASE_URL" -X -q -A -t -v ON_ERROR_STOP=1 -f api/db/seed/dev_space.sql
 
 db-test-setup: ## Create rail_canvas_test if missing and migrate it
 	@$(ENV) psql "$$MIGRATE_DATABASE_URL" -X -q -A -t -c "SELECT 1 FROM pg_database WHERE datname = 'rail_canvas_test'" | grep -q 1 \

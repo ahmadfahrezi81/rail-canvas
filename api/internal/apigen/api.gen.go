@@ -17,6 +17,31 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for SpaceMembershipRole.
+const (
+	Member SpaceMembershipRole = "member"
+	Owner  SpaceMembershipRole = "owner"
+)
+
+// Valid indicates whether the value is a known member of the SpaceMembershipRole enum.
+func (e SpaceMembershipRole) Valid() bool {
+	switch e {
+	case Member:
+		return true
+	case Owner:
+		return true
+	default:
+		return false
+	}
+}
+
+// AuthResponse defines model for AuthResponse.
+type AuthResponse struct {
+	// Token Send as Authorization: Bearer <token>
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}
+
 // Canvas defines model for Canvas.
 type Canvas struct {
 	CooldownSeconds int                `json:"cooldownSeconds"`
@@ -49,6 +74,29 @@ type Health struct {
 	Status string `json:"status"`
 }
 
+// Invite defines model for Invite.
+type Invite struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// JoinRequest defines model for JoinRequest.
+type JoinRequest struct {
+	Code string `json:"code"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// Me defines model for Me.
+type Me struct {
+	Spaces []SpaceMembership `json:"spaces"`
+	User   User              `json:"user"`
+}
+
 // Palette defines model for Palette.
 type Palette struct {
 	// Colors Hex colors. A cell's byte is an index into this list.
@@ -56,46 +104,129 @@ type Palette struct {
 	Id     string   `json:"id"`
 }
 
+// SignupRequest defines model for SignupRequest.
+type SignupRequest struct {
+	Code        string `json:"code"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+}
+
+// SpaceMembership defines model for SpaceMembership.
+type SpaceMembership struct {
+	Id   openapi_types.UUID  `json:"id"`
+	Name string              `json:"name"`
+	Role SpaceMembershipRole `json:"role"`
+	Slug string              `json:"slug"`
+}
+
+// SpaceMembershipRole defines model for SpaceMembership.Role.
+type SpaceMembershipRole string
+
+// User defines model for User.
+type User struct {
+	DisplayName string             `json:"displayName"`
+	Email       string             `json:"email"`
+	Id          openapi_types.UUID `json:"id"`
+}
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
+// SignupJSONRequestBody defines body for Signup for application/json ContentType.
+type SignupJSONRequestBody = SignupRequest
+
+// JoinSpaceJSONRequestBody defines body for JoinSpace for application/json ContentType.
+type JoinSpaceJSONRequestBody = JoinRequest
+
 // CreateCanvasJSONRequestBody defines body for CreateCanvas for application/json ContentType.
 type CreateCanvasJSONRequestBody = CreateCanvasRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
-	// (GET /canvases)
-	ListCanvases(w http.ResponseWriter, r *http.Request)
+	// (POST /auth/login)
+	Login(w http.ResponseWriter, r *http.Request)
 
-	// (POST /canvases)
-	CreateCanvas(w http.ResponseWriter, r *http.Request)
+	// (POST /auth/logout)
+	Logout(w http.ResponseWriter, r *http.Request)
 
-	// (GET /canvases/{canvasId}/board)
-	GetCanvasBoard(w http.ResponseWriter, r *http.Request, canvasId openapi_types.UUID)
+	// (POST /auth/signup)
+	Signup(w http.ResponseWriter, r *http.Request)
 
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+
+	// (GET /me)
+	GetMe(w http.ResponseWriter, r *http.Request)
+
+	// (POST /spaces/join)
+	JoinSpace(w http.ResponseWriter, r *http.Request)
+
+	// (GET /spaces/{spaceId}/canvases)
+	ListCanvases(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
+
+	// (POST /spaces/{spaceId}/canvases)
+	CreateCanvas(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
+
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
+	GetCanvasBoard(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
+	// (POST /spaces/{spaceId}/invites)
+	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
 
-// (GET /canvases)
-func (_ Unimplemented) ListCanvases(w http.ResponseWriter, r *http.Request) {
+// (POST /auth/login)
+func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (POST /canvases)
-func (_ Unimplemented) CreateCanvas(w http.ResponseWriter, r *http.Request) {
+// (POST /auth/logout)
+func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (GET /canvases/{canvasId}/board)
-func (_ Unimplemented) GetCanvasBoard(w http.ResponseWriter, r *http.Request, canvasId openapi_types.UUID) {
+// (POST /auth/signup)
+func (_ Unimplemented) Signup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // (GET /health)
 func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /me)
+func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/join)
+func (_ Unimplemented) JoinSpace(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /spaces/{spaceId}/canvases)
+func (_ Unimplemented) ListCanvases(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/{spaceId}/canvases)
+func (_ Unimplemented) CreateCanvas(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
+func (_ Unimplemented) GetCanvasBoard(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/{spaceId}/invites)
+func (_ Unimplemented) CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -108,11 +239,107 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// Login operation middleware
+func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Login(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Logout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Signup operation middleware
+func (siw *ServerInterfaceWrapper) Signup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Signup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHealth operation middleware
+func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMe operation middleware
+func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JoinSpace operation middleware
+func (siw *ServerInterfaceWrapper) JoinSpace(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JoinSpace(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListCanvases operation middleware
 func (siw *ServerInterfaceWrapper) ListCanvases(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListCanvases(w, r)
+		siw.Handler.ListCanvases(w, r, spaceId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -125,8 +352,20 @@ func (siw *ServerInterfaceWrapper) ListCanvases(w http.ResponseWriter, r *http.R
 // CreateCanvas operation middleware
 func (siw *ServerInterfaceWrapper) CreateCanvas(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateCanvas(w, r)
+		siw.Handler.CreateCanvas(w, r, spaceId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -142,6 +381,15 @@ func (siw *ServerInterfaceWrapper) GetCanvasBoard(w http.ResponseWriter, r *http
 	var err error
 	_ = err
 
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
 	// ------------- Path parameter "canvasId" -------------
 	var canvasId openapi_types.UUID
 
@@ -152,7 +400,7 @@ func (siw *ServerInterfaceWrapper) GetCanvasBoard(w http.ResponseWriter, r *http
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCanvasBoard(w, r, canvasId)
+		siw.Handler.GetCanvasBoard(w, r, spaceId, canvasId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -162,11 +410,23 @@ func (siw *ServerInterfaceWrapper) GetCanvasBoard(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
-// GetHealth operation middleware
-func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
+// CreateInvite operation middleware
+func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetHealth(w, r)
+		siw.Handler.CreateInvite(w, r, spaceId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -293,19 +553,315 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/health", wrapper.GetHealth)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/canvases", wrapper.ListCanvases)
+		r.Post(options.BaseURL+"/auth/login", wrapper.Login)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/canvases", wrapper.CreateCanvas)
+		r.Post(options.BaseURL+"/auth/signup", wrapper.Signup)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/canvases/{canvasId}/board", wrapper.GetCanvasBoard)
+		r.Post(options.BaseURL+"/auth/logout", wrapper.Logout)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/me", wrapper.GetMe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/join", wrapper.JoinSpace)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/invites", wrapper.CreateInvite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases", wrapper.ListCanvases)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases", wrapper.CreateCanvas)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/board", wrapper.GetCanvasBoard)
 	})
 
 	return r
 }
 
+type LoginRequestObject struct {
+	Body *LoginJSONRequestBody
+}
+
+type LoginResponseObject interface {
+	VisitLoginResponse(w http.ResponseWriter) error
+}
+
+type Login200JSONResponse AuthResponse
+
+func (response Login200JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login400JSONResponse Error
+
+func (response Login400JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login401JSONResponse Error
+
+func (response Login401JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login429JSONResponse Error
+
+func (response Login429JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogoutRequestObject struct {
+}
+
+type LogoutResponseObject interface {
+	VisitLogoutResponse(w http.ResponseWriter) error
+}
+
+type Logout204Response struct {
+}
+
+func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type Logout401JSONResponse Error
+
+func (response Logout401JSONResponse) VisitLogoutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SignupRequestObject struct {
+	Body *SignupJSONRequestBody
+}
+
+type SignupResponseObject interface {
+	VisitSignupResponse(w http.ResponseWriter) error
+}
+
+type Signup201JSONResponse AuthResponse
+
+func (response Signup201JSONResponse) VisitSignupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Signup400JSONResponse Error
+
+func (response Signup400JSONResponse) VisitSignupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Signup409JSONResponse Error
+
+func (response Signup409JSONResponse) VisitSignupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Signup429JSONResponse Error
+
+func (response Signup429JSONResponse) VisitSignupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHealthRequestObject struct {
+}
+
+type GetHealthResponseObject interface {
+	VisitGetHealthResponse(w http.ResponseWriter) error
+}
+
+type GetHealth200JSONResponse Health
+
+func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeRequestObject struct {
+}
+
+type GetMeResponseObject interface {
+	VisitGetMeResponse(w http.ResponseWriter) error
+}
+
+type GetMe200JSONResponse Me
+
+func (response GetMe200JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMe401JSONResponse Error
+
+func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinSpaceRequestObject struct {
+	Body *JoinSpaceJSONRequestBody
+}
+
+type JoinSpaceResponseObject interface {
+	VisitJoinSpaceResponse(w http.ResponseWriter) error
+}
+
+type JoinSpace200JSONResponse SpaceMembership
+
+func (response JoinSpace200JSONResponse) VisitJoinSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinSpace400JSONResponse Error
+
+func (response JoinSpace400JSONResponse) VisitJoinSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinSpace401JSONResponse Error
+
+func (response JoinSpace401JSONResponse) VisitJoinSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinSpace429JSONResponse Error
+
+func (response JoinSpace429JSONResponse) VisitJoinSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListCanvasesRequestObject struct {
+	SpaceId openapi_types.UUID `json:"spaceId"`
 }
 
 type ListCanvasesResponseObject interface {
@@ -340,8 +896,23 @@ func (response ListCanvases401JSONResponse) VisitListCanvasesResponse(w http.Res
 	return err
 }
 
+type ListCanvases404JSONResponse Error
+
+func (response ListCanvases404JSONResponse) VisitListCanvasesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateCanvasRequestObject struct {
-	Body *CreateCanvasJSONRequestBody
+	SpaceId openapi_types.UUID `json:"spaceId"`
+	Body    *CreateCanvasJSONRequestBody
 }
 
 type CreateCanvasResponseObject interface {
@@ -390,7 +961,22 @@ func (response CreateCanvas401JSONResponse) VisitCreateCanvasResponse(w http.Res
 	return err
 }
 
+type CreateCanvas404JSONResponse Error
+
+func (response CreateCanvas404JSONResponse) VisitCreateCanvasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetCanvasBoardRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
 	CanvasId openapi_types.UUID `json:"canvasId"`
 }
 
@@ -446,23 +1032,66 @@ func (response GetCanvasBoard404JSONResponse) VisitGetCanvasBoardResponse(w http
 	return err
 }
 
-type GetHealthRequestObject struct {
+type CreateInviteRequestObject struct {
+	SpaceId openapi_types.UUID `json:"spaceId"`
 }
 
-type GetHealthResponseObject interface {
-	VisitGetHealthResponse(w http.ResponseWriter) error
+type CreateInviteResponseObject interface {
+	VisitCreateInviteResponse(w http.ResponseWriter) error
 }
 
-type GetHealth200JSONResponse Health
+type CreateInvite201JSONResponse Invite
 
-func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
+func (response CreateInvite201JSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateInvite401JSONResponse Error
+
+func (response CreateInvite401JSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateInvite403JSONResponse Error
+
+func (response CreateInvite403JSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateInvite404JSONResponse Error
+
+func (response CreateInvite404JSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -470,17 +1099,35 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
-	// (GET /canvases)
-	ListCanvases(ctx context.Context, request ListCanvasesRequestObject) (ListCanvasesResponseObject, error)
+	// (POST /auth/login)
+	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
 
-	// (POST /canvases)
-	CreateCanvas(ctx context.Context, request CreateCanvasRequestObject) (CreateCanvasResponseObject, error)
+	// (POST /auth/logout)
+	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
 
-	// (GET /canvases/{canvasId}/board)
-	GetCanvasBoard(ctx context.Context, request GetCanvasBoardRequestObject) (GetCanvasBoardResponseObject, error)
+	// (POST /auth/signup)
+	Signup(ctx context.Context, request SignupRequestObject) (SignupResponseObject, error)
 
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+
+	// (GET /me)
+	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+
+	// (POST /spaces/join)
+	JoinSpace(ctx context.Context, request JoinSpaceRequestObject) (JoinSpaceResponseObject, error)
+
+	// (GET /spaces/{spaceId}/canvases)
+	ListCanvases(ctx context.Context, request ListCanvasesRequestObject) (ListCanvasesResponseObject, error)
+
+	// (POST /spaces/{spaceId}/canvases)
+	CreateCanvas(ctx context.Context, request CreateCanvasRequestObject) (CreateCanvasResponseObject, error)
+
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
+	GetCanvasBoard(ctx context.Context, request GetCanvasBoardRequestObject) (GetCanvasBoardResponseObject, error)
+
+	// (POST /spaces/{spaceId}/invites)
+	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -522,9 +1169,176 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// Login operation middleware
+func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var request LoginRequestObject
+
+	var body LoginJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Login(ctx, request.(LoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Login")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LoginResponseObject); ok {
+		if err := validResponse.VisitLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Logout operation middleware
+func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var request LogoutRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Logout(ctx, request.(LogoutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Logout")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LogoutResponseObject); ok {
+		if err := validResponse.VisitLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Signup operation middleware
+func (sh *strictHandler) Signup(w http.ResponseWriter, r *http.Request) {
+	var request SignupRequestObject
+
+	var body SignupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Signup(ctx, request.(SignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Signup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SignupResponseObject); ok {
+		if err := validResponse.VisitSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHealth operation middleware
+func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
+	var request GetHealthRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHealth(ctx, request.(GetHealthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHealth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
+		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMe operation middleware
+func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	var request GetMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMe(ctx, request.(GetMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeResponseObject); ok {
+		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JoinSpace operation middleware
+func (sh *strictHandler) JoinSpace(w http.ResponseWriter, r *http.Request) {
+	var request JoinSpaceRequestObject
+
+	var body JoinSpaceJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JoinSpace(ctx, request.(JoinSpaceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JoinSpace")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JoinSpaceResponseObject); ok {
+		if err := validResponse.VisitJoinSpaceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListCanvases operation middleware
-func (sh *strictHandler) ListCanvases(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListCanvases(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
 	var request ListCanvasesRequestObject
+
+	request.SpaceId = spaceId
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListCanvases(ctx, request.(ListCanvasesRequestObject))
@@ -547,8 +1361,10 @@ func (sh *strictHandler) ListCanvases(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateCanvas operation middleware
-func (sh *strictHandler) CreateCanvas(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CreateCanvas(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
 	var request CreateCanvasRequestObject
+
+	request.SpaceId = spaceId
 
 	var body CreateCanvasJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -578,9 +1394,10 @@ func (sh *strictHandler) CreateCanvas(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetCanvasBoard operation middleware
-func (sh *strictHandler) GetCanvasBoard(w http.ResponseWriter, r *http.Request, canvasId openapi_types.UUID) {
+func (sh *strictHandler) GetCanvasBoard(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	var request GetCanvasBoardRequestObject
 
+	request.SpaceId = spaceId
 	request.CanvasId = canvasId
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
@@ -603,23 +1420,25 @@ func (sh *strictHandler) GetCanvasBoard(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-// GetHealth operation middleware
-func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
-	var request GetHealthRequestObject
+// CreateInvite operation middleware
+func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
+	var request CreateInviteRequestObject
+
+	request.SpaceId = spaceId
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetHealth(ctx, request.(GetHealthRequestObject))
+		return sh.ssi.CreateInvite(ctx, request.(CreateInviteRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetHealth")
+		handler = middleware(handler, "CreateInvite")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
-		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+	} else if validResponse, ok := response.(CreateInviteResponseObject); ok {
+		if err := validResponse.VisitCreateInviteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Config struct {
@@ -18,16 +16,17 @@ type Config struct {
 	Env             string // Railway environment name, "development" locally
 	LogLevel        slog.Level
 	ShutdownTimeout time.Duration
-	DatabaseURL     string    // connects as the app role
-	DevSpaceID      uuid.UUID // stand-in tenant until login (Step 5); uuid.Nil when unset
-	CORSOrigins     []string  // browser origins allowed to call the API
+	DatabaseURL     string   // connects as the app role
+	CORSOrigins     []string // browser origins allowed to call the API
+	RealIPHeader    string   // set by Railway's edge; a client cannot forge it
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Port:        getenv("PORT", "8080"),
-		Env:         getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		Port:         getenv("PORT", "8080"),
+		Env:          getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		RealIPHeader: getenv("REAL_IP_HEADER", "X-Real-IP"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -43,12 +42,6 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SHUTDOWN_TIMEOUT_SECONDS: want a positive integer, got %q", os.Getenv("SHUTDOWN_TIMEOUT_SECONDS"))
 	}
 	cfg.ShutdownTimeout = time.Duration(secs) * time.Second
-
-	if v := os.Getenv("DEV_SPACE_ID"); v != "" {
-		if cfg.DevSpaceID, err = uuid.Parse(v); err != nil {
-			return Config{}, fmt.Errorf("DEV_SPACE_ID: %w", err)
-		}
-	}
 
 	for _, o := range strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ",") {
 		if o = strings.TrimSpace(o); o != "" {

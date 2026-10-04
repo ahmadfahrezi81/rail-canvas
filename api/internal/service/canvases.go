@@ -29,10 +29,12 @@ func NewCanvases(pool *pgxpool.Pool) *Canvases {
 	return &Canvases{pool: pool}
 }
 
-func (s *Canvases) Create(ctx context.Context, spaceID uuid.UUID, name string) (Canvas, error) {
+func (s *Canvases) Create(ctx context.Context, spaceID, userID uuid.UUID, name string) (Canvas, error) {
 	var out Canvas
 	err := inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
-		row, err := q.CreateCanvas(ctx, store.CreateCanvasParams{SpaceID: spaceID, Name: name})
+		row, err := q.CreateCanvas(ctx, store.CreateCanvasParams{
+			SpaceID: spaceID, Name: name, CreatedBy: uuid.NullUUID{UUID: userID, Valid: true},
+		})
 		if err != nil {
 			return err
 		}

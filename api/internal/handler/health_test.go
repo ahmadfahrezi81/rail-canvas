@@ -8,7 +8,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	res, err := NewServer("test", nil).GetHealth(context.Background(), apigen.GetHealthRequestObject{})
+	res, err := NewServer("test", nil, nil, nil).GetHealth(context.Background(), apigen.GetHealthRequestObject{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,8 +18,8 @@ func TestHealth(t *testing.T) {
 	}
 }
 
-func TestCanvasRoutesNeedASpace(t *testing.T) {
-	s := NewServer("test", nil)
+func TestRoutesNeedAUser(t *testing.T) {
+	s := NewServer("test", nil, nil, nil)
 	ctx := context.Background()
 
 	if res, _ := s.ListCanvases(ctx, apigen.ListCanvasesRequestObject{}); !is[apigen.ListCanvases401JSONResponse](res) {
@@ -30,6 +30,15 @@ func TestCanvasRoutesNeedASpace(t *testing.T) {
 	}
 	if res, _ := s.GetCanvasBoard(ctx, apigen.GetCanvasBoardRequestObject{}); !is[apigen.GetCanvasBoard401JSONResponse](res) {
 		t.Errorf("board: got %T, want 401", res)
+	}
+	if res, _ := s.GetMe(ctx, apigen.GetMeRequestObject{}); !is[apigen.GetMe401JSONResponse](res) {
+		t.Errorf("me: got %T, want 401", res)
+	}
+	if res, _ := s.CreateInvite(ctx, apigen.CreateInviteRequestObject{}); !is[apigen.CreateInvite401JSONResponse](res) {
+		t.Errorf("invite: got %T, want 401", res)
+	}
+	if res, _ := s.Logout(ctx, apigen.LogoutRequestObject{}); !is[apigen.Logout401JSONResponse](res) {
+		t.Errorf("logout: got %T, want 401", res)
 	}
 }
 

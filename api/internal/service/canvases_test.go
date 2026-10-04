@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // testPool connects to TEST_DATABASE_URL as the app role, so RLS applies.
@@ -55,13 +56,48 @@ func newSpace(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return id
 }
 
+// newUser inserts a user with the given password (cheap bcrypt cost; Login accepts any cost).
+func newUser(t *testing.T, pool *pgxpool.Pool, password string) uuid.UUID {
+	t.Helper()
+	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	var id uuid.UUID
+	email := "test-" + uuid.NewString()[:8] + "@example.com"
+	if err := pool.QueryRow(context.Background(),
+		"INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, 'Tester') RETURNING id",
+		email, string(hash)).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE id = $1", id)
+	})
+	return id
+}
+
+func emailOf(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) string {
+	t.Helper()
+	var email string
+	if err := pool.QueryRow(context.Background(), "SELECT email FROM users WHERE id = $1", id).Scan(&email); err != nil {
+		t.Fatal(err)
+	}
+	return email
+}
+
+func addMember(t *testing.T, pool *pgxpool.Pool, space, user uuid.UUID, role string) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		"INSERT INTO space_members (space_id, user_id, role) VALUES ($1, $2, $3)", space, user, role); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCanvasRoundTrip(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	space := newSpace(t, pool)
+	user := newUser(t, pool, "pw-not-used")
 	svc := NewCanvases(pool)
 
-	c, err := svc.Create(ctx, space, "first")
+	c, err := svc.Create(ctx, space, user, "first")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +135,7 @@ func TestOtherSpaceSeesNothing(t *testing.T) {
 	a, b := newSpace(t, pool), newSpace(t, pool)
 	svc := NewCanvases(pool)
 
-	c, err := svc.Create(ctx, a, "a's canvas")
+	c, err := svc.Create(ctx, a, newUser(t, pool, "x"), "a's canvas")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +153,7 @@ func TestRLS(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	a, b := newSpace(t, pool), newSpace(t, pool)
-	if _, err := NewCanvases(pool).Create(ctx, a, "rls"); err != nil {
+	if _, err := NewCanvases(pool).Create(ctx, a, newUser(t, pool, "x"), "rls"); err != nil {
 		t.Fatal(err)
 	}
 

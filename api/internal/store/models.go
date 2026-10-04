@@ -19,6 +19,7 @@ type Canvas struct {
 	Palette         string
 	CooldownSeconds int32
 	CreatedAt       time.Time
+	CreatedBy       uuid.NullUUID
 }
 
 type CanvasPixel struct {
@@ -30,9 +31,45 @@ type CanvasPixel struct {
 	PixelID  int64
 }
 
+type Invite struct {
+	ID        uuid.UUID
+	SpaceID   uuid.UUID
+	CodeHash  []byte
+	CreatedBy uuid.UUID
+	ExpiresAt time.Time
+	UsedBy    uuid.NullUUID
+	UsedAt    *time.Time
+}
+
+type Session struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	TokenHash []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	RevokedAt *time.Time
+}
+
 type Space struct {
 	ID        uuid.UUID
 	Name      string
 	Slug      string
 	CreatedAt time.Time
+}
+
+type SpaceMember struct {
+	SpaceID      uuid.UUID
+	UserID       uuid.UUID
+	Role         string
+	LastPlacedAt *time.Time
+	JoinedAt     time.Time
+}
+
+type User struct {
+	ID           uuid.UUID
+	Email        string
+	PasswordHash string
+	DisplayName  string
+	Status       string
+	CreatedAt    time.Time
 }

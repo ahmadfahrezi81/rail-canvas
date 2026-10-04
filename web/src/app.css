@@ -31,7 +31,6 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   padding: 1rem;
   min-height: 100vh;
 }
-header { grid-column: 1 / -1; }
 main { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; }
 
 .board, .board-placeholder {
@@ -61,3 +60,31 @@ main { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75
 @media (max-width: 640px) {
   .app { grid-template-columns: 1fr; }
 }
+
+.page { padding: 1rem; }
+
+.auth {
+  max-width: 340px;
+  margin: 10vh auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.auth label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
+.auth input { padding: 0.5rem; font: inherit; color: var(--fg); }
+.auth button[type="submit"] { padding: 0.5rem; font: inherit; cursor: pointer; }
+.tabs { display: flex; gap: 0.25rem; }
+.tabs button {
+  flex: 1; padding: 0.4rem; font: inherit; cursor: pointer;
+  background: none; border: 1px solid var(--line); color: inherit; border-radius: 4px;
+}
+.tabs button[aria-selected="true"] { background: var(--line); font-weight: 600; }
+
+.space-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.space-bar .spacer { flex: 1; }
+.space-bar select, .space-bar input { padding: 0.3rem; font: inherit; }
+.space-name { font-weight: 600; }
+.invite code { font-size: 0.85rem; padding: 0.15rem 0.35rem; background: var(--line); border-radius: 4px; user-select: all; }
+.join { display: flex; gap: 0.25rem; align-items: center; }
+.join input { width: 14ch; }
