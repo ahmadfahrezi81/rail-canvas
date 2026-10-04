@@ -151,6 +151,53 @@ paths:
         "401": *error
         "404": *error
 
+  /spaces/{spaceId}/canvases/{canvasId}/pixels:
+    post:
+      operationId: placePixel
+      description: |
+        Place one pixel. One placement per member per space per cooldown.
+        Everyone subscribed to the canvas then gets a pixel:placed message.
+      parameters:
+        - *spaceId
+        - name: canvasId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlacePixelRequest" }
+      responses:
+        "201":
+          description: Placed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlacedPixel" }
+        "400": *error
+        "401": *error
+        "404": *error
+        "429":
+          description: Too soon; try again at nextPlaceAt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CooldownError" }
+
+  /ws/ticket:
+    post:
+      operationId: createWSTicket
+      description: |
+        A single-use ticket, valid 30 seconds, to open the WebSocket:
+        GET /ws?ticket=... (not described here: an upgrade is not a REST call).
+        Messages use WSClientMessage and WSServerMessage.
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WSTicket" }
+        "401": *error
+
   /spaces/{spaceId}/canvases/{canvasId}/board:
     get:
       operationId: getCanvasBoard
@@ -289,3 +336,57 @@ components:
       required: [name]
       properties:
         name: { type: string, minLength: 1, maxLength: 64 }
+        cooldownSeconds: { type: integer, minimum: 1, maximum: 3600, description: "Default 10" }
+
+    PlacePixelRequest:
+      type: object
+      required: [x, y, color]
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+        color: { type: integer, description: Index into the canvas palette }
+
+    PlacedPixel:
+      type: object
+      required: [pixelId, x, y, color, placedAt, nextPlaceAt]
+      properties:
+        pixelId: { type: integer, format: int64 }
+        x: { type: integer }
+        y: { type: integer }
+        color: { type: integer }
+        placedAt: { type: string, format: date-time }
+        nextPlaceAt: { type: string, format: date-time }
+
+    CooldownError:
+      type: object
+      required: [error, nextPlaceAt]
+      properties:
+        error: { type: string }
+        nextPlaceAt: { type: string, format: date-time }
+
+    WSTicket:
+      type: object
+      required: [ticket, expiresAt]
+      properties:
+        ticket: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    WSClientMessage:
+      type: object
+      required: [type, spaceId, canvasId]
+      properties:
+        type: { type: string, enum: [subscribe, unsubscribe] }
+        spaceId: { type: string, format: uuid }
+        canvasId: { type: string, format: uuid }
+
+    WSServerMessage:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [subscribed, "pixel:placed", error] }
+        canvasId: { type: string, format: uuid }
+        pixelId: { type: integer, format: int64 }
+        x: { type: integer }
+        y: { type: integer }
+        color: { type: integer }
+        error: { type: string }

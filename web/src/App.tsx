@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { AuthForm } from "./components/AuthForm";
-import { Board } from "./components/Board";
 import { CanvasList } from "./components/CanvasList";
-import { Palette } from "./components/Palette";
+import { CanvasView } from "./components/CanvasView";
 import { SpaceBar } from "./components/SpaceBar";
-import { useBoard } from "./lib/hooks/useBoard";
 import { useCanvases } from "./lib/hooks/useCanvases";
 import { useSession } from "./lib/hooks/useSession";
 
@@ -26,11 +24,7 @@ function Workspace({ session }: { session: ReturnType<typeof useSession> }) {
 
   const { canvases, error, create } = useCanvases(space?.id);
   const [selectedId, setSelectedId] = useState<string>();
-  const [color, setColor] = useState(5);
-  const [cell, setCell] = useState<{ x: number; y: number }>();
-
   const canvas = canvases?.find((c) => c.id === selectedId) ?? canvases?.[0];
-  const { board, error: boardError } = useBoard(space?.id, canvas?.id);
 
   function selectSpace(id: string) {
     setSpaceId(id);
@@ -58,20 +52,7 @@ function Workspace({ session }: { session: ReturnType<typeof useSession> }) {
           </aside>
 
           <main>
-            {canvas && (
-              <>
-                {boardError && <p className="error">{boardError.message}</p>}
-                {board ? (
-                  <Board canvas={canvas} board={board} onCellClick={(x, y) => setCell({ x, y })} />
-                ) : (
-                  <div className="board-placeholder" />
-                )}
-                <Palette colors={canvas.palette.colors} selected={color} onSelect={setColor} />
-                <p className="muted">
-                  {cell ? `x ${cell.x}, y ${cell.y}` : "Click a cell"} · placing arrives in Step 6
-                </p>
-              </>
-            )}
+            {canvas && <CanvasView key={canvas.id} spaceId={space.id} canvas={canvas} />}
             {canvases?.length === 0 && <p className="muted">No canvases yet. Create one.</p>}
           </main>
         </>

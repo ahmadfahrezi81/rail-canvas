@@ -46,7 +46,14 @@ func (s *Server) CreateCanvas(ctx context.Context, req apigen.CreateCanvasReques
 	if n := utf8.RuneCountInString(name); n < 1 || n > 64 {
 		return apigen.CreateCanvas400JSONResponse{Error: "name must be 1 to 64 characters"}, nil
 	}
-	c, err := s.canvases.Create(ctx, req.SpaceId, user.ID, name)
+	cooldown := service.DefaultCooldown
+	if req.Body.CooldownSeconds != nil {
+		cooldown = *req.Body.CooldownSeconds
+	}
+	if cooldown < 1 || cooldown > 3600 {
+		return apigen.CreateCanvas400JSONResponse{Error: "cooldown must be 1 to 3600 seconds"}, nil
+	}
+	c, err := s.canvases.Create(ctx, req.SpaceId, user.ID, name, cooldown)
 	if err != nil {
 		return nil, err
 	}

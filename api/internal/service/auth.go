@@ -24,6 +24,7 @@ const (
 	bcryptCost    = 12
 	sessionTTL    = 30 * 24 * time.Hour
 	inviteTTL     = 7 * 24 * time.Hour
+	wsTicketTTL   = 30 * time.Second
 	uniqueViolate = "23505"
 )
 
@@ -164,6 +165,31 @@ func (a *Auth) Join(ctx context.Context, userID uuid.UUID, code string) (uuid.UU
 		return q.AddMember(ctx, store.AddMemberParams{SpaceID: spaceID, UserID: userID, Role: "member"})
 	})
 	return spaceID, err
+}
+
+// CreateWSTicket: a single-use, 30-second ticket to open the WebSocket
+// (browsers cannot send Authorization on a WebSocket).
+func (a *Auth) CreateWSTicket(ctx context.Context, userID uuid.UUID) (string, time.Time, error) {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	ticket := base64.RawURLEncoding.EncodeToString(b)
+	expires := time.Now().Add(wsTicketTTL)
+	err := store.New(a.pool).CreateWSTicket(ctx, store.CreateWSTicketParams{
+		TicketHash: hashSecret(ticket), UserID: userID, ExpiresAt: expires,
+	})
+	return ticket, expires, err
+}
+
+// RedeemTicket uses a ticket up. Used, expired, unknown or a suspended user: ErrUnauthenticated.
+func (a *Auth) RedeemTicket(ctx context.Context, ticket string) (uuid.UUID, error) {
+	if ticket == "" {
+		return uuid.Nil, ErrUnauthenticated
+	}
+	row, err := store.New(a.pool).RedeemWSTicket(ctx, hashSecret(ticket))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrUnauthenticated
+	}
+	return row.ID, err
 }
 
 type BootstrapParams struct {

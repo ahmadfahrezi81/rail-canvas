@@ -6,6 +6,12 @@ export type Canvas = components["schemas"]["Canvas"];
 export type User = components["schemas"]["User"];
 export type Membership = components["schemas"]["SpaceMembership"];
 export type Me = components["schemas"]["Me"];
+export type PlacedPixel = components["schemas"]["PlacedPixel"];
+export type WSClientMessage = components["schemas"]["WSClientMessage"];
+export type WSServerMessage = components["schemas"]["WSServerMessage"];
+
+export const wsUrl = (ticket: string) =>
+  `${baseUrl.replace(/^http/, "ws")}/ws?ticket=${encodeURIComponent(ticket)}`;
 
 const baseUrl = import.meta.env.VITE_API_URL;
 if (!baseUrl) throw new Error("VITE_API_URL is not set");
@@ -35,6 +41,13 @@ export class ApiError extends Error {
   }
 }
 
+// Too soon to place again; nextPlaceAt says when.
+export class CooldownError extends ApiError {
+  constructor(readonly nextPlaceAt: Date) {
+    super(429, "cooldown");
+  }
+}
+
 function fail(response: Response, error: { error: string }): never {
   throw new ApiError(response.status, error.error);
 }
@@ -58,6 +71,14 @@ export const authApi = {
     const { data, error, response } = await client.GET("/me");
     if (error) fail(response, error);
     return data;
+  },
+};
+
+export const realtimeApi = {
+  async ticket(): Promise<string> {
+    const { data, error, response } = await client.POST("/ws/ticket");
+    if (error) fail(response, error);
+    return data.ticket;
   },
 };
 
@@ -92,6 +113,16 @@ export const canvasesApi = {
     if (error) fail(response, error);
     return data;
   },
+  async place(spaceId: string, canvasId: string, x: number, y: number, color: number): Promise<PlacedPixel> {
+    const { data, error, response } = await client.POST("/spaces/{spaceId}/canvases/{canvasId}/pixels", {
+      params: { path: { spaceId, canvasId } },
+      body: { x, y, color },
+    });
+    if (response.status === 429 && error && "nextPlaceAt" in error) throw new CooldownError(new Date(error.nextPlaceAt));
+    if (error) fail(response, error);
+    return data;
+  },
+
   // One byte per cell, row by row: an index into the canvas palette.
   async board(spaceId: string, canvasId: string): Promise<Uint8Array> {
     const { data, error, response } = await client.GET("/spaces/{spaceId}/canvases/{canvasId}/board", {

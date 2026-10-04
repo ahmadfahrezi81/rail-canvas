@@ -2,8 +2,8 @@
 SELECT set_config('app.tenant_id', sqlc.arg(space_id)::text, true);
 
 -- name: CreateCanvas :one
-INSERT INTO canvases (space_id, name, created_by)
-VALUES (sqlc.arg(space_id), sqlc.arg(name), sqlc.arg(created_by))
+INSERT INTO canvases (space_id, name, created_by, cooldown_seconds)
+VALUES (sqlc.arg(space_id), sqlc.arg(name), sqlc.arg(created_by), sqlc.arg(cooldown_seconds))
 RETURNING *;
 
 -- name: ListCanvases :many

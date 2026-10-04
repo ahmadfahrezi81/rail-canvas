@@ -97,7 +97,7 @@ func TestCanvasRoundTrip(t *testing.T) {
 	user := newUser(t, pool, "pw-not-used")
 	svc := NewCanvases(pool)
 
-	c, err := svc.Create(ctx, space, user, "first")
+	c, err := svc.Create(ctx, space, user, "first", DefaultCooldown)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestOtherSpaceSeesNothing(t *testing.T) {
 	a, b := newSpace(t, pool), newSpace(t, pool)
 	svc := NewCanvases(pool)
 
-	c, err := svc.Create(ctx, a, newUser(t, pool, "x"), "a's canvas")
+	c, err := svc.Create(ctx, a, newUser(t, pool, "x"), "a's canvas", DefaultCooldown)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestRLS(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	a, b := newSpace(t, pool), newSpace(t, pool)
-	if _, err := NewCanvases(pool).Create(ctx, a, newUser(t, pool, "x"), "rls"); err != nil {
+	if _, err := NewCanvases(pool).Create(ctx, a, newUser(t, pool, "x"), "rls", DefaultCooldown); err != nil {
 		t.Fatal(err)
 	}
 

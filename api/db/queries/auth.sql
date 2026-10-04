@@ -35,3 +35,15 @@ RETURNING expires_at;
 UPDATE invites SET used_by = sqlc.arg(user_id), used_at = now()
 WHERE code_hash = sqlc.arg(code_hash) AND used_at IS NULL AND expires_at > now()
 RETURNING space_id;
+
+-- name: CreateWSTicket :exec
+INSERT INTO ws_tickets (ticket_hash, user_id, expires_at)
+VALUES (sqlc.arg(ticket_hash), sqlc.arg(user_id), sqlc.arg(expires_at));
+
+-- name: RedeemWSTicket :one
+-- Atomic single use, and only for a still-active user.
+UPDATE ws_tickets t SET used_at = now()
+FROM users u
+WHERE t.ticket_hash = sqlc.arg(ticket_hash) AND t.used_at IS NULL AND t.expires_at > now()
+  AND u.id = t.user_id AND u.status = 'active'
+RETURNING u.id, u.email, u.display_name;

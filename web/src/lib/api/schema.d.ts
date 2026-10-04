@@ -134,6 +134,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/spaces/{spaceId}/canvases/{canvasId}/pixels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Place one pixel. One placement per member per space per cooldown.
+         *     Everyone subscribed to the canvas then gets a pixel:placed message.
+         */
+        post: operations["placePixel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ws/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description A single-use ticket, valid 30 seconds, to open the WebSocket:
+         *     GET /ws?ticket=... (not described here: an upgrade is not a REST call).
+         *     Messages use WSClientMessage and WSServerMessage.
+         */
+        post: operations["createWSTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/spaces/{spaceId}/canvases/{canvasId}/board": {
         parameters: {
             query?: never;
@@ -227,6 +268,55 @@ export interface components {
         };
         CreateCanvasRequest: {
             name: string;
+            /** @description Default 10 */
+            cooldownSeconds?: number;
+        };
+        PlacePixelRequest: {
+            x: number;
+            y: number;
+            /** @description Index into the canvas palette */
+            color: number;
+        };
+        PlacedPixel: {
+            /** Format: int64 */
+            pixelId: number;
+            x: number;
+            y: number;
+            color: number;
+            /** Format: date-time */
+            placedAt: string;
+            /** Format: date-time */
+            nextPlaceAt: string;
+        };
+        CooldownError: {
+            error: string;
+            /** Format: date-time */
+            nextPlaceAt: string;
+        };
+        WSTicket: {
+            ticket: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        WSClientMessage: {
+            /** @enum {string} */
+            type: "subscribe" | "unsubscribe";
+            /** Format: uuid */
+            spaceId: string;
+            /** Format: uuid */
+            canvasId: string;
+        };
+        WSServerMessage: {
+            /** @enum {string} */
+            type: "subscribed" | "pixel:placed" | "error";
+            /** Format: uuid */
+            canvasId?: string;
+            /** Format: int64 */
+            pixelId?: number;
+            x?: number;
+            y?: number;
+            color?: number;
+            error?: string;
         };
     };
     responses: never;
@@ -599,6 +689,98 @@ export interface operations {
             };
             /** @description Error */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    placePixel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacePixelRequest"];
+            };
+        };
+        responses: {
+            /** @description Placed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacedPixel"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too soon; try again at nextPlaceAt */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CooldownError"];
+                };
+            };
+        };
+    };
+    createWSTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WSTicket"];
+                };
+            };
+            /** @description Error */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

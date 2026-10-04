@@ -35,6 +35,45 @@ func (e SpaceMembershipRole) Valid() bool {
 	}
 }
 
+// Defines values for WSClientMessageType.
+const (
+	Subscribe   WSClientMessageType = "subscribe"
+	Unsubscribe WSClientMessageType = "unsubscribe"
+)
+
+// Valid indicates whether the value is a known member of the WSClientMessageType enum.
+func (e WSClientMessageType) Valid() bool {
+	switch e {
+	case Subscribe:
+		return true
+	case Unsubscribe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WSServerMessageType.
+const (
+	WSServerMessageTypeError       WSServerMessageType = "error"
+	WSServerMessageTypePixelPlaced WSServerMessageType = "pixel:placed"
+	WSServerMessageTypeSubscribed  WSServerMessageType = "subscribed"
+)
+
+// Valid indicates whether the value is a known member of the WSServerMessageType enum.
+func (e WSServerMessageType) Valid() bool {
+	switch e {
+	case WSServerMessageTypeError:
+		return true
+	case WSServerMessageTypePixelPlaced:
+		return true
+	case WSServerMessageTypeSubscribed:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	// Token Send as Authorization: Bearer <token>
@@ -58,9 +97,17 @@ type CanvasList struct {
 	Canvases []Canvas `json:"canvases"`
 }
 
+// CooldownError defines model for CooldownError.
+type CooldownError struct {
+	Error       string    `json:"error"`
+	NextPlaceAt time.Time `json:"nextPlaceAt"`
+}
+
 // CreateCanvasRequest defines model for CreateCanvasRequest.
 type CreateCanvasRequest struct {
-	Name string `json:"name"`
+	// CooldownSeconds Default 10
+	CooldownSeconds *int   `json:"cooldownSeconds,omitempty"`
+	Name            string `json:"name"`
 }
 
 // Error defines model for Error.
@@ -104,6 +151,24 @@ type Palette struct {
 	Id     string   `json:"id"`
 }
 
+// PlacePixelRequest defines model for PlacePixelRequest.
+type PlacePixelRequest struct {
+	// Color Index into the canvas palette
+	Color int `json:"color"`
+	X     int `json:"x"`
+	Y     int `json:"y"`
+}
+
+// PlacedPixel defines model for PlacedPixel.
+type PlacedPixel struct {
+	Color       int       `json:"color"`
+	NextPlaceAt time.Time `json:"nextPlaceAt"`
+	PixelId     int64     `json:"pixelId"`
+	PlacedAt    time.Time `json:"placedAt"`
+	X           int       `json:"x"`
+	Y           int       `json:"y"`
+}
+
 // SignupRequest defines model for SignupRequest.
 type SignupRequest struct {
 	Code        string `json:"code"`
@@ -130,6 +195,36 @@ type User struct {
 	Id          openapi_types.UUID `json:"id"`
 }
 
+// WSClientMessage defines model for WSClientMessage.
+type WSClientMessage struct {
+	CanvasId openapi_types.UUID  `json:"canvasId"`
+	SpaceId  openapi_types.UUID  `json:"spaceId"`
+	Type     WSClientMessageType `json:"type"`
+}
+
+// WSClientMessageType defines model for WSClientMessage.Type.
+type WSClientMessageType string
+
+// WSServerMessage defines model for WSServerMessage.
+type WSServerMessage struct {
+	CanvasId *openapi_types.UUID `json:"canvasId,omitempty"`
+	Color    *int                `json:"color,omitempty"`
+	Error    *string             `json:"error,omitempty"`
+	PixelId  *int64              `json:"pixelId,omitempty"`
+	Type     WSServerMessageType `json:"type"`
+	X        *int                `json:"x,omitempty"`
+	Y        *int                `json:"y,omitempty"`
+}
+
+// WSServerMessageType defines model for WSServerMessage.Type.
+type WSServerMessageType string
+
+// WSTicket defines model for WSTicket.
+type WSTicket struct {
+	ExpiresAt time.Time `json:"expiresAt"`
+	Ticket    string    `json:"ticket"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -141,6 +236,9 @@ type JoinSpaceJSONRequestBody = JoinRequest
 
 // CreateCanvasJSONRequestBody defines body for CreateCanvas for application/json ContentType.
 type CreateCanvasJSONRequestBody = CreateCanvasRequest
+
+// PlacePixelJSONRequestBody defines body for PlacePixel for application/json ContentType.
+type PlacePixelJSONRequestBody = PlacePixelRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -172,8 +270,14 @@ type ServerInterface interface {
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
 	GetCanvasBoard(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
 
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
+	PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
+
+	// (POST /ws/ticket)
+	CreateWSTicket(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -225,8 +329,18 @@ func (_ Unimplemented) GetCanvasBoard(w http.ResponseWriter, r *http.Request, sp
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
+func (_ Unimplemented) PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (POST /spaces/{spaceId}/invites)
 func (_ Unimplemented) CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /ws/ticket)
+func (_ Unimplemented) CreateWSTicket(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -410,6 +524,41 @@ func (siw *ServerInterfaceWrapper) GetCanvasBoard(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// PlacePixel operation middleware
+func (siw *ServerInterfaceWrapper) PlacePixel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PlacePixel(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateInvite operation middleware
 func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
@@ -427,6 +576,20 @@ func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateInvite(w, r, spaceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateWSTicket operation middleware
+func (siw *ServerInterfaceWrapper) CreateWSTicket(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateWSTicket(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -575,6 +738,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases", wrapper.CreateCanvas)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/pixels", wrapper.PlacePixel)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/ws/ticket", wrapper.CreateWSTicket)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/board", wrapper.GetCanvasBoard)
@@ -1032,6 +1201,86 @@ func (response GetCanvasBoard404JSONResponse) VisitGetCanvasBoardResponse(w http
 	return err
 }
 
+type PlacePixelRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+	Body     *PlacePixelJSONRequestBody
+}
+
+type PlacePixelResponseObject interface {
+	VisitPlacePixelResponse(w http.ResponseWriter) error
+}
+
+type PlacePixel201JSONResponse PlacedPixel
+
+func (response PlacePixel201JSONResponse) VisitPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlacePixel400JSONResponse Error
+
+func (response PlacePixel400JSONResponse) VisitPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlacePixel401JSONResponse Error
+
+func (response PlacePixel401JSONResponse) VisitPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlacePixel404JSONResponse Error
+
+func (response PlacePixel404JSONResponse) VisitPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlacePixel429JSONResponse CooldownError
+
+func (response PlacePixel429JSONResponse) VisitPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateInviteRequestObject struct {
 	SpaceId openapi_types.UUID `json:"spaceId"`
 }
@@ -1096,6 +1345,41 @@ func (response CreateInvite404JSONResponse) VisitCreateInviteResponse(w http.Res
 	return err
 }
 
+type CreateWSTicketRequestObject struct {
+}
+
+type CreateWSTicketResponseObject interface {
+	VisitCreateWSTicketResponse(w http.ResponseWriter) error
+}
+
+type CreateWSTicket201JSONResponse WSTicket
+
+func (response CreateWSTicket201JSONResponse) VisitCreateWSTicketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateWSTicket401JSONResponse Error
+
+func (response CreateWSTicket401JSONResponse) VisitCreateWSTicketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -1126,8 +1410,14 @@ type StrictServerInterface interface {
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
 	GetCanvasBoard(ctx context.Context, request GetCanvasBoardRequestObject) (GetCanvasBoardResponseObject, error)
 
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
+	PlacePixel(ctx context.Context, request PlacePixelRequestObject) (PlacePixelResponseObject, error)
+
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
+
+	// (POST /ws/ticket)
+	CreateWSTicket(ctx context.Context, request CreateWSTicketRequestObject) (CreateWSTicketResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1420,6 +1710,40 @@ func (sh *strictHandler) GetCanvasBoard(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// PlacePixel operation middleware
+func (sh *strictHandler) PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request PlacePixelRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	var body PlacePixelJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PlacePixel(ctx, request.(PlacePixelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PlacePixel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PlacePixelResponseObject); ok {
+		if err := validResponse.VisitPlacePixelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateInvite operation middleware
 func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
 	var request CreateInviteRequestObject
@@ -1439,6 +1763,30 @@ func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, sp
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateInviteResponseObject); ok {
 		if err := validResponse.VisitCreateInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateWSTicket operation middleware
+func (sh *strictHandler) CreateWSTicket(w http.ResponseWriter, r *http.Request) {
+	var request CreateWSTicketRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateWSTicket(ctx, request.(CreateWSTicketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateWSTicket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateWSTicketResponseObject); ok {
+		if err := validResponse.VisitCreateWSTicketResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

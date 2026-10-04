@@ -29,11 +29,15 @@ func NewCanvases(pool *pgxpool.Pool) *Canvases {
 	return &Canvases{pool: pool}
 }
 
-func (s *Canvases) Create(ctx context.Context, spaceID, userID uuid.UUID, name string) (Canvas, error) {
+// DefaultCooldown matches the column default; a personal project with a small group.
+const DefaultCooldown = 10
+
+func (s *Canvases) Create(ctx context.Context, spaceID, userID uuid.UUID, name string, cooldownSeconds int) (Canvas, error) {
 	var out Canvas
 	err := inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
 		row, err := q.CreateCanvas(ctx, store.CreateCanvasParams{
 			SpaceID: spaceID, Name: name, CreatedBy: uuid.NullUUID{UUID: userID, Valid: true},
+			CooldownSeconds: int32(cooldownSeconds),
 		})
 		if err != nil {
 			return err
@@ -89,6 +93,28 @@ func (s *Canvases) Board(ctx context.Context, spaceID, canvasID uuid.UUID) ([]by
 		return nil
 	})
 	return board, err
+}
+
+// CanSubscribe: the user is a member of the space and the canvas belongs to it.
+func (s *Canvases) CanSubscribe(ctx context.Context, userID, spaceID, canvasID uuid.UUID) (bool, error) {
+	if _, err := memberRole(ctx, store.New(s.pool), spaceID, userID); err != nil {
+		return false, ignoreNotFound(err)
+	}
+	err := inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
+		_, err := q.GetCanvas(ctx, store.GetCanvasParams{ID: canvasID, SpaceID: spaceID})
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func ignoreNotFound(err error) error {
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 func toCanvas(row store.Canvas) (Canvas, error) {

@@ -20,6 +20,7 @@ type Server struct {
 	auth     *service.Auth
 	spaces   *service.Spaces
 	canvases *service.Canvases
+	pixels   *service.Pixels
 
 	loginLimit   *ratelimit.Limiter // per email + IP: guessing one account's password
 	loginIPLimit *ratelimit.Limiter // per IP: trying many accounts
@@ -29,9 +30,9 @@ type Server struct {
 
 var _ apigen.StrictServerInterface = (*Server)(nil)
 
-func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases) *Server {
+func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases, pixels *service.Pixels) *Server {
 	return &Server{
-		env: env, auth: auth, spaces: spaces, canvases: canvases,
+		env: env, auth: auth, spaces: spaces, canvases: canvases, pixels: pixels,
 		// 5 attempts at once, then one every 12 seconds.
 		loginLimit:   ratelimit.New(12*time.Second, 5),
 		loginIPLimit: ratelimit.New(3*time.Second, 20),

@@ -90,6 +90,22 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const createWSTicket = `-- name: CreateWSTicket :exec
+INSERT INTO ws_tickets (ticket_hash, user_id, expires_at)
+VALUES ($1, $2, $3)
+`
+
+type CreateWSTicketParams struct {
+	TicketHash []byte
+	UserID     uuid.UUID
+	ExpiresAt  time.Time
+}
+
+func (q *Queries) CreateWSTicket(ctx context.Context, arg CreateWSTicketParams) error {
+	_, err := q.db.Exec(ctx, createWSTicket, arg.TicketHash, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
 const getSessionUser = `-- name: GetSessionUser :one
 SELECT u.id, u.email, u.password_hash, u.display_name, u.status, u.created_at FROM sessions s
 JOIN users u ON u.id = s.user_id
@@ -148,6 +164,28 @@ func (q *Queries) RedeemInvite(ctx context.Context, arg RedeemInviteParams) (uui
 	var space_id uuid.UUID
 	err := row.Scan(&space_id)
 	return space_id, err
+}
+
+const redeemWSTicket = `-- name: RedeemWSTicket :one
+UPDATE ws_tickets t SET used_at = now()
+FROM users u
+WHERE t.ticket_hash = $1 AND t.used_at IS NULL AND t.expires_at > now()
+  AND u.id = t.user_id AND u.status = 'active'
+RETURNING u.id, u.email, u.display_name
+`
+
+type RedeemWSTicketRow struct {
+	ID          uuid.UUID
+	Email       string
+	DisplayName string
+}
+
+// Atomic single use, and only for a still-active user.
+func (q *Queries) RedeemWSTicket(ctx context.Context, ticketHash []byte) (RedeemWSTicketRow, error) {
+	row := q.db.QueryRow(ctx, redeemWSTicket, ticketHash)
+	var i RedeemWSTicketRow
+	err := row.Scan(&i.ID, &i.Email, &i.DisplayName)
+	return i, err
 }
 
 const revokeSession = `-- name: RevokeSession :exec

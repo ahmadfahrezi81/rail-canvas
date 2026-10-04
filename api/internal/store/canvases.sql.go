@@ -12,19 +12,25 @@ import (
 )
 
 const createCanvas = `-- name: CreateCanvas :one
-INSERT INTO canvases (space_id, name, created_by)
-VALUES ($1, $2, $3)
+INSERT INTO canvases (space_id, name, created_by, cooldown_seconds)
+VALUES ($1, $2, $3, $4)
 RETURNING id, space_id, name, width, height, palette, cooldown_seconds, created_at, created_by
 `
 
 type CreateCanvasParams struct {
-	SpaceID   uuid.UUID
-	Name      string
-	CreatedBy uuid.NullUUID
+	SpaceID         uuid.UUID
+	Name            string
+	CreatedBy       uuid.NullUUID
+	CooldownSeconds int32
 }
 
 func (q *Queries) CreateCanvas(ctx context.Context, arg CreateCanvasParams) (Canvas, error) {
-	row := q.db.QueryRow(ctx, createCanvas, arg.SpaceID, arg.Name, arg.CreatedBy)
+	row := q.db.QueryRow(ctx, createCanvas,
+		arg.SpaceID,
+		arg.Name,
+		arg.CreatedBy,
+		arg.CooldownSeconds,
+	)
 	var i Canvas
 	err := row.Scan(
 		&i.ID,

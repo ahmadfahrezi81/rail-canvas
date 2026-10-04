@@ -35,7 +35,7 @@ export function CanvasList({ canvases, selectedId, onSelect, onCreate }: Props) 
         {canvases.map((c) => (
           <li key={c.id}>
             <button aria-current={c.id === selectedId} onClick={() => onSelect(c.id)}>
-              {c.name}
+              {c.name} <span className="muted">· {c.cooldownSeconds}s</span>
             </button>
           </li>
         ))}

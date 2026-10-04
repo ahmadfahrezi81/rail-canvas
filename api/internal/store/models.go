@@ -41,6 +41,18 @@ type Invite struct {
 	UsedAt    *time.Time
 }
 
+type Pixel struct {
+	ID       int64
+	SpaceID  uuid.UUID
+	CanvasID uuid.UUID
+	X        int16
+	Y        int16
+	Color    int16
+	UserID   uuid.NullUUID
+	Source   string
+	PlacedAt time.Time
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -72,4 +84,11 @@ type User struct {
 	DisplayName  string
 	Status       string
 	CreatedAt    time.Time
+}
+
+type WsTicket struct {
+	TicketHash []byte
+	UserID     uuid.UUID
+	ExpiresAt  time.Time
+	UsedAt     *time.Time
 }

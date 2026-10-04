@@ -4,3 +4,5 @@ generate:
   models: true
   chi-server: true
   strict-server: true
+output-options:
+  skip-prune: true # keep WS message schemas, which no REST path references

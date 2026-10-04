@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bufio"
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -17,9 +19,14 @@ func (s *statusRecorder) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
-// Unwrap lets the WebSocket upgrade reach the real writer.
+// Unwrap and Hijack let the WebSocket upgrade reach the real connection.
 func (s *statusRecorder) Unwrap() http.ResponseWriter {
 	return s.ResponseWriter
+}
+
+func (s *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	s.status = http.StatusSwitchingProtocols
+	return http.NewResponseController(s.ResponseWriter).Hijack()
 }
 
 // Logger writes one line per request. /health logs at debug to keep healthchecks out.

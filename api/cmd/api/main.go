@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/config"
@@ -19,6 +20,7 @@ import (
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/httpx"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/middleware"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/platform"
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/realtime"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/service"
 )
 
@@ -50,15 +52,20 @@ func run() error {
 	defer pool.Close()
 
 	auth := service.NewAuth(pool)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), service.NewCanvases(pool))
+	canvases := service.NewCanvases(pool)
+	hub := realtime.NewHub(auth, canvases, cfg.CORSOrigins)
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           routes(cfg, server, auth),
+		Handler:           routes(cfg, server, auth, hub),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		// No WriteTimeout: WebSockets are long-lived.
 	}
+	srv.RegisterOnShutdown(hub.Close) // Shutdown does not close upgraded connections itself
+
+	go logStats(ctx, hub, pool)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -85,7 +92,7 @@ func run() error {
 	return nil
 }
 
-func routes(cfg config.Config, server *handler.Server, auth middleware.Authenticator) http.Handler {
+func routes(cfg config.Config, server *handler.Server, auth middleware.Authenticator, hub *realtime.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
@@ -99,6 +106,9 @@ func routes(cfg config.Config, server *handler.Server, auth middleware.Authentic
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusMethodNotAllowed, "method not allowed")
 	})
+
+	// Outside the generated interface: an upgrade hands the connection over.
+	r.Get("/ws", hub.ServeWS)
 
 	strict := apigen.NewStrictHandlerWithOptions(server, nil, apigen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -115,4 +125,27 @@ func routes(cfg config.Config, server *handler.Server, auth middleware.Authentic
 			httpx.BadRequest(w, r, err.Error())
 		},
 	})
+}
+
+// logStats writes the numbers later steps and the load test are read against.
+func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			ws, db := hub.Stats(), pool.Stat()
+			slog.Info("stats",
+				"ws_clients", ws.Clients,
+				"ws_subscriptions", ws.Subscriptions,
+				"ws_dropped_slow", ws.DroppedSlow,
+				"db_in_use", db.AcquiredConns(),
+				"db_idle", db.IdleConns(),
+				"db_max", db.MaxConns(),
+				"db_waited_total", db.EmptyAcquireCount(), // acquires that had to wait for a free connection
+			)
+		}
+	}
 }
