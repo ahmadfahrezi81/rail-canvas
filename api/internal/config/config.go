@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	DatabaseURL     string    // connects as the app role
 	DevSpaceID      uuid.UUID // stand-in tenant until login (Step 5); uuid.Nil when unset
+	CORSOrigins     []string  // browser origins allowed to call the API
 }
 
 func Load() (Config, error) {
@@ -45,6 +47,12 @@ func Load() (Config, error) {
 	if v := os.Getenv("DEV_SPACE_ID"); v != "" {
 		if cfg.DevSpaceID, err = uuid.Parse(v); err != nil {
 			return Config{}, fmt.Errorf("DEV_SPACE_ID: %w", err)
+		}
+	}
+
+	for _, o := range strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			cfg.CORSOrigins = append(cfg.CORSOrigins, o)
 		}
 	}
 

@@ -94,6 +94,7 @@ func routes(cfg config.Config, server *handler.Server) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recover)
+	r.Use(middleware.CORS(cfg.CORSOrigins))
 	r.Use(middleware.DevSpace(cfg.DevSpaceID))
 
 	// chi's defaults are plain text.

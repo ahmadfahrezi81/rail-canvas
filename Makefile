@@ -13,7 +13,7 @@ ENV := set -a; [ -f .env ] && . ./.env; set +a;
 # Test database: same server as MIGRATE_DATABASE_URL, database rail_canvas_test.
 TEST_URL = $${MIGRATE_DATABASE_URL%/*}/rail_canvas_test
 
-.PHONY: help dev test test-db vet fmt check generate build docker-build docker-run \
+.PHONY: help dev test test-db vet fmt check web-dev web-build generate build docker-build docker-run \
 	migrate-new migrate-up migrate-status db-app-password db-seed-dev db-test-setup
 
 help: ## List targets
@@ -34,12 +34,19 @@ vet: ## go vet
 fmt: ## gofmt every Go file
 	cd api && gofmt -w .
 
-check: vet test ## gofmt, vet, tests: what CI runs on the API
+check: vet test web-build ## gofmt, vet, tests, frontend build: what CI runs
 	@cd api && test -z "$$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
 
-generate: ## Regenerate apigen (openapi.yaml) and store (sqlc)
+web-dev: ## Run the frontend on :5173 (reads web/.env.local)
+	cd web && pnpm dev
+
+web-build: ## Type-check and build the frontend
+	cd web && pnpm -s build
+
+generate: ## Regenerate apigen + web types (openapi.yaml) and store (sqlc)
 	cd api && $(OAPI) -config oapi-codegen.yaml openapi.yaml
 	cd api && $(SQLC) generate
+	cd web && pnpm -s generate
 
 build: ## Build every binary into api/bin/
 	cd api && CGO_ENABLED=0 go build -o bin/ ./cmd/...
