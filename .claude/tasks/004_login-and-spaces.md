@@ -137,3 +137,12 @@ token, so it exercises login too. But all k6 traffic shares one IP, and the
 per-IP login limit (20 at once, then one per 3 s) would stretch 200 logins
 over about 9 minutes. Before the load test, make the limiter settings
 environment variables and raise them in staging only.
+
+## Live check (2026-10-04, after deploy)
+
+Owner login works with CORS for the Pages origin; `/me` shows Pixel Club as
+owner; the old `/canvases` route is gone (404); a space route without a token
+is 401, another space's id is 404; a made-up invite code is refused. **Real IP
+confirmed:** seven logins, each forging a different `X-Real-IP` and
+`X-Forwarded-For`, still hit 429 on the sixth, so Railway's edge overwrites
+`X-Real-IP` and the limiter cannot be dodged.
