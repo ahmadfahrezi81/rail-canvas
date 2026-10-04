@@ -119,4 +119,8 @@ Railway builds the root `Dockerfile`. The api service reads `railway.api.json` (
 
 ## Commits
 
-`type(scope): a sentence saying what changed` — e.g. `feat(api): the service answers /health and shuts down cleanly`. Scopes: `api`, `web`, `ops`, `ci`, `docs`.
+`type(scope): a sentence saying what changed` — e.g. `feat(api): the service answers /health and shuts down cleanly`. Scopes: `api`, `web`, `ops`, `ci`, `docs`. **No `Co-Authored-By` trailer.**
+
+## Comments
+
+As short as possible: one line, only where the *why* is not obvious from the code. Long reasoning goes in the task file or Notion, not in code.
