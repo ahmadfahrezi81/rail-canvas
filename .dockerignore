@@ -1,0 +1,9 @@
+.git
+.claude
+web
+ops
+functions
+docs
+*.md
+.env
+.env.*

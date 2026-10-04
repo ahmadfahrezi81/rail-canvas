@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+api/bin/
+node_modules/
+dist/
+.DS_Store
