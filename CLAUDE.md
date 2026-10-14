@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **The plan lives in Notion:** [Rail Canvas: Railway stress-test project](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9). It holds the data model, the build order (Steps 1–18) and every decision with its reason. Read the relevant section before starting a step. The Notion page is the **what and why**; `.claude/tasks/NNN_name.md` is the **how** for one step.
 - **Build one step at a time, in order.** Later steps are written assuming earlier ones exist. Do not pull a stretch feature (Redis, worker, replicas) forward.
 - **Keep this file updated** for structural changes only: a new package, a new layer, a new rule, a new command. Not for single endpoints or bug fixes.
-- **Railway, Cloudflare and GitHub settings are the owner's to change.** Write down what to click; do not assume it was done.
+- **Railway settings live in `.railway/railway.ts`** and change by pull request (see Railway as code). Cloudflare and GitHub settings, and Railway's dashboard-only ones, are the owner's to change: write down what to click; do not assume it was done.
 
 ---
 
@@ -70,7 +70,8 @@ Learning is the point. The structure matters more than the feature list.
 │       ├── lib/hooks/        # SWR hooks over the client
 │       └── components/       # use hooks, never the client
 ├── Dockerfile                # one image, every binary under /app/
-├── railway.api.json          # Railway config-as-code for the api service
+├── .railway/railway.ts       # Railway project as code: services, settings, variables
+├── package.json              # only the Railway SDK, so .railway/railway.ts can import it
 ├── .github/workflows/ci.yml  # CI: api, contract, web, docker
 └── .claude/tasks/            # one plan per step
 ```
@@ -172,13 +173,24 @@ Joining later: timeout and body size limit.
 - `web` — `pnpm build`
 - `docker` — builds the `Dockerfile`, pushes nothing
 
-Railway's **Wait for CI** holds a deploy until the push run on `main` is green.
+Railway's **Wait for CI** (`checkSuites` in `.railway/railway.ts`) holds a deploy until the push run on `main` is green.
 
-**Migrations run on deploy, never on API boot.** `railway.api.json` sets the pre-deploy command `/app/cli migrate`: after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
+**Migrations run on deploy, never on API boot.** `.railway/railway.ts` sets the pre-deploy command `/app/cli migrate`: after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
 
-Railway builds the root `Dockerfile`. The api service reads `railway.api.json` (set as the service's config file path): healthcheck `/health`, start command `/app/api`, restart on failure. Railway sends `SIGTERM` before replacing a deploy; the API stops accepting, lets in-flight requests finish within `SHUTDOWN_TIMEOUT_SECONDS`, then exits.
+Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/health`. Railway sends `SIGTERM` before replacing a deploy; the API stops accepting, lets in-flight requests finish within `SHUTDOWN_TIMEOUT_SECONDS`, then exits.
 
 `/health` is deliberately dependency-free: a database blip must not make Railway restart a healthy API.
+
+## Railway as code
+
+`.railway/railway.ts` describes production: the `api` service (source, start, pre-deploy, healthcheck, Wait for CI, variables) and `Postgres` with its volume. Railway's own format ("Infrastructure as Code"); `railway.json` files are deprecated and are not read.
+
+- **Change it by pull request.** `railway-plan.yml` comments Railway's plan on the PR; merging is the approval; `railway-apply.yml` applies exactly that plan. A direct push to `main` has no plan and fails.
+- **Never edit a declared setting in the dashboard.** The next apply fails (the environment changed since the plan); put the change in the file instead.
+- **Nothing is deleted by CI.** Removing a resource from the file deletes it on apply, so the apply runs with `confirm-destructive: false`: a plan that deletes anything fails. Postgres stays declared. Deletes are done by hand, with the owner.
+- **Variables are managed by the file, values are not in it.** `preserve()` keeps the value Railway holds. Never `railway config pull --include-variables`.
+- **Locally:** `railway config plan` (read-only) to preview; `apply` only through the pull request.
+- The workflows use `RAILWAY_TOKEN`, a project token for `production` in GitHub's secrets.
 
 ---
 
