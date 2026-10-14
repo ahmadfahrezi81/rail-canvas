@@ -2,8 +2,10 @@ import { useRef, useState } from "react";
 import { CooldownError, type Canvas } from "../lib/api/client";
 import { useLiveCanvas } from "../lib/hooks/useLiveCanvas";
 import { usePlacePixel } from "../lib/hooks/usePlacePixel";
+import { useTemplates } from "../lib/hooks/useTemplates";
 import { Board, type BoardHandle } from "./Board";
 import { Palette } from "./Palette";
+import { Templates } from "./Templates";
 
 export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canvas }) {
   const boardRef = useRef<BoardHandle>(null);
@@ -14,6 +16,18 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
   const [color, setColor] = useState(5);
   const [hover, setHover] = useState<{ x: number; y: number }>();
   const [error, setError] = useState<string>();
+  const { templates, unavailable, upload, remove } = useTemplates(spaceId, canvas.id);
+  const [shown, setShown] = useState<Set<string>>(new Set());
+  const [opacity, setOpacity] = useState(0.5);
+  const overlays = (templates ?? []).filter((t) => shown.has(t.id));
+
+  function toggle(id: string) {
+    setShown((s) => {
+      const next = new Set(s);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
 
   // Optimistic: draw first, then ask the server; undo if it says no.
   async function onCellClick(x: number, y: number) {
@@ -32,7 +46,16 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
   return (
     <>
       {board ? (
-        <Board ref={boardRef} canvas={canvas} board={board} color={color} onCellClick={onCellClick} onHover={setHover} />
+        <Board
+          ref={boardRef}
+          canvas={canvas}
+          board={board}
+          color={color}
+          onCellClick={onCellClick}
+          onHover={setHover}
+          overlays={overlays}
+          overlayOpacity={opacity}
+        />
       ) : (
         <div className="board-placeholder" />
       )}
@@ -47,6 +70,20 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
         <span className="muted">· {hover ? `x ${hover.x}, y ${hover.y}` : "drag to pan, scroll to zoom"}</span>
       </p>
       {error && <p className="error">{error}</p>}
+      {templates && !unavailable && (
+        <Templates
+          templates={templates}
+          shown={shown}
+          onToggle={toggle}
+          opacity={opacity}
+          onOpacity={setOpacity}
+          onUpload={async (file, x, y) => {
+            const t = await upload(file, x, y);
+            setShown((s) => new Set(s).add(t.id)); // show what was just uploaded
+          }}
+          onRemove={remove}
+        />
+      )}
     </>
   );
 }

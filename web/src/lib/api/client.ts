@@ -7,6 +7,7 @@ export type User = components["schemas"]["User"];
 export type Membership = components["schemas"]["SpaceMembership"];
 export type Me = components["schemas"]["Me"];
 export type PlacedPixel = components["schemas"]["PlacedPixel"];
+export type Template = components["schemas"]["Template"];
 export type WSClientMessage = components["schemas"]["WSClientMessage"];
 export type WSServerMessage = components["schemas"]["WSServerMessage"];
 
@@ -131,5 +132,42 @@ export const canvasesApi = {
     });
     if (error) fail(response, error);
     return new Uint8Array(data);
+  },
+};
+
+export const templatesApi = {
+  // Ready templates; each url is signed and expires at urlExpiresAt.
+  async list(spaceId: string, canvasId: string): Promise<Template[]> {
+    const { data, error, response } = await client.GET("/spaces/{spaceId}/canvases/{canvasId}/templates", {
+      params: { path: { spaceId, canvasId } },
+    });
+    if (error) fail(response, error);
+    return data.templates;
+  },
+  // Three steps: the API signs an upload URL, the file goes straight to the bucket, the API checks it.
+  async upload(spaceId: string, canvasId: string, file: File, x: number, y: number): Promise<Template> {
+    const path = { spaceId, canvasId };
+    const start = await client.POST("/spaces/{spaceId}/canvases/{canvasId}/templates", {
+      params: { path },
+      body: { bytes: file.size, contentType: "image/png", x, y },
+    });
+    if (start.error) fail(start.response, start.error);
+    const { templateId, uploadUrl, uploadHeaders } = start.data;
+
+    // The one request that is not to our API: no bearer token, only the signed headers.
+    const put = await fetch(uploadUrl, { method: "PUT", headers: uploadHeaders, body: file });
+    if (!put.ok) throw new ApiError(put.status, "upload to storage failed");
+
+    const done = await client.POST("/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete", {
+      params: { path: { ...path, templateId } },
+    });
+    if (done.error) fail(done.response, done.error);
+    return done.data;
+  },
+  async remove(spaceId: string, canvasId: string, templateId: string): Promise<void> {
+    const { error, response } = await client.DELETE("/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}", {
+      params: { path: { spaceId, canvasId, templateId } },
+    });
+    if (error) fail(response, error);
   },
 };

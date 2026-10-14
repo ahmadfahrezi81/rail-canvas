@@ -16,28 +16,32 @@ import (
 
 // Server implements the interface generated from openapi.yaml.
 type Server struct {
-	env      string
-	auth     *service.Auth
-	spaces   *service.Spaces
-	canvases *service.Canvases
-	pixels   *service.Pixels
+	env       string
+	auth      *service.Auth
+	spaces    *service.Spaces
+	canvases  *service.Canvases
+	pixels    *service.Pixels
+	templates *service.Templates
 
 	loginLimit   *ratelimit.Limiter // per email + IP: guessing one account's password
 	loginIPLimit *ratelimit.Limiter // per IP: trying many accounts
 	signupLimit  *ratelimit.Limiter
 	joinLimit    *ratelimit.Limiter
+	// per member: 10 uploads at once, then one every 6 minutes (10 an hour).
+	templateLimit *ratelimit.Limiter
 }
 
 var _ apigen.StrictServerInterface = (*Server)(nil)
 
-func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases, pixels *service.Pixels) *Server {
+func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases, pixels *service.Pixels, templates *service.Templates) *Server {
 	return &Server{
-		env: env, auth: auth, spaces: spaces, canvases: canvases, pixels: pixels,
+		env: env, auth: auth, spaces: spaces, canvases: canvases, pixels: pixels, templates: templates,
 		// 5 attempts at once, then one every 12 seconds.
-		loginLimit:   ratelimit.New(12*time.Second, 5),
-		loginIPLimit: ratelimit.New(3*time.Second, 20),
-		signupLimit:  ratelimit.New(12*time.Second, 5),
-		joinLimit:    ratelimit.New(12*time.Second, 5),
+		loginLimit:    ratelimit.New(12*time.Second, 5),
+		loginIPLimit:  ratelimit.New(3*time.Second, 20),
+		signupLimit:   ratelimit.New(12*time.Second, 5),
+		joinLimit:     ratelimit.New(12*time.Second, 5),
+		templateLimit: ratelimit.New(6*time.Minute, 10),
 	}
 }
 

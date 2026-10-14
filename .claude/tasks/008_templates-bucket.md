@@ -1,6 +1,20 @@
 # Task 008 — Templates: upload a reference image to a bucket, overlay it on the board
 
-**Status: approved 2026-10-14. Pull request 1 (the bucket) open.**
+**Status: bucket live 2026-10-14 (pull request #4, `sin`). Feature built on branch `feat/templates`; all tests green; end-to-end against the real bucket from the laptop passed. Pull request 2 open.**
+
+## Spike results (2026-10-14, from the laptop)
+
+- `PutBucketCors` works; a preflight from an allowed origin gets `Access-Control-Allow-Origin`, any other origin 403
+- **Wildcard origins are not matched**: `https://*.rail-canvas.pages.dev` lets no preview site through. Production and localhost only; preview sites cannot upload (they can still show templates)
+- A signed `PUT` with `Content-Length` in the signature: the exact size is stored (200); a larger file is refused (403). So the signed size is enforced
+- Signed `GET` works (200); the same URL without the signature is refused (403)
+- Decision 3 takes the direct-upload path
+
+## What changed from the plan
+
+- **The bucket's CORS rule is kept in code:** `cli bucket-cors` sets it from `CORS_ORIGINS`, and `cli predeploy` (migrate, then bucket-cors) becomes the pre-deploy command in a small follow-up pull request. Not in this one: Railway would apply the new command on merge, possibly before the new image exists, and the old binary does not know `predeploy`
+- **The per-member upload limit lives in the handler** like the login limits (`ratelimit.New(6*time.Minute, 10)`); `ratelimit`'s own tests cover the limiter
+- **Abandoned `pending` rows** wait for Step 13's cleanup, as planned; their files cannot exist past the declared size
 
 Plan: [Rail Canvas, Step 8](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9) and its
 "Data model", "Security and tenancy" (Uploads) and "Open questions" (Bucket CORS) sections.
