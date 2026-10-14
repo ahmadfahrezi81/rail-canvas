@@ -12,7 +12,8 @@ export default defineRailway(() => {
     source: github("ahmadfahrezi81/rail-canvas", { branch: "main", checkSuites: true }),
     start: "/app/api",
     // Runs after the build, before the new version starts; a failure stops the deploy.
-    preDeploy: "/app/cli migrate",
+    // Migrations, then the bucket's CORS from CORS_ORIGINS.
+    preDeploy: "/app/cli predeploy",
     healthcheck: "/health",
     replicas: { "asia-southeast1-eqsg3a": 1 },
     networking: { privateNetworkEndpoint: "rail-canvas" },
