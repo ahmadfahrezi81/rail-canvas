@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-14, end of session.** Update this file at the end of every session.
+**Updated 2026-10-15, end of session.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -14,6 +14,7 @@
 | 6 | Placing pixels with a cooldown, live over WebSocket, zoom/pan/grid, optimistic draw | 005 |
 | 7 | CI on GitHub Actions (api, contract, web, docker); `main` protected by a ruleset | 006 |
 | 7b | Railway settings as code (`.railway/railway.ts`), migrations in the pre-deploy step, Wait for CI; one rollback practised | 007 |
+| 8 | Templates: PNG upload straight to a private bucket (`templates`, Singapore) with signed URLs, overlay on the board | 008 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -22,9 +23,13 @@
 
 ## Next
 
-**Step 8 — template upload through a Railway Storage Bucket** (task 008, not written yet).
-Start by writing it and getting approval. Check bucket CORS first (Notion open question).
-A bucket is a Railway resource, so it is added in `.railway/railway.ts` and goes through a plan.
+**Step 9 — nightly `pg_dump` to Cloudflare R2** (task 009, not written yet). Start by writing it
+and getting approval. From Notion: an `ops/backup` image `FROM postgres:18` (a `pg_dump` older
+than the server refuses to dump it), run as a Railway cron service, connecting as `postgres`;
+a dead-man's switch ping (healthchecks.io); one test restore into a temporary Postgres
+(create the `app` role first, compare row counts, delete it); then `docs/runbook.md`.
+Open question to check first: does the Backups tab exist on Hobby. The bucket has no backups
+either (Railway offers none); decide whether templates are worth backing up.
 
 How changes reach production now: branch → pull request → CI's four checks (required by the
 `main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli migrate` →
