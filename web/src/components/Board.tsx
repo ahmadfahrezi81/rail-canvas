@@ -3,12 +3,17 @@ import type { Canvas } from "../lib/api/client";
 
 export type BoardHandle = { paint: (x: number, y: number, color: number) => void };
 
+// A template image drawn over the board: one image pixel per cell.
+export type Overlay = { id: string; url: string; x: number; y: number; width: number; height: number };
+
 type Props = {
   canvas: Canvas;
   board: Uint8Array;
   color: number; // the selected palette index, for the hover outline
   onCellClick: (x: number, y: number) => void;
   onHover: (cell: { x: number; y: number } | undefined) => void;
+  overlays?: Overlay[];
+  overlayOpacity?: number;
 };
 
 const MAX_SCALE = 40; // a cell at most 40 screen pixels
@@ -20,7 +25,7 @@ const DRAG_PX = 4; // movement past this turns a click into a pan
  * so zoom and pan never redraw it. A second canvas on top draws the grid and the
  * hover outline at screen resolution.
  */
-export const Board = forwardRef<BoardHandle, Props>(function Board({ canvas, board, color, onCellClick, onHover }, ref) {
+export const Board = forwardRef<BoardHandle, Props>(function Board({ canvas, board, color, onCellClick, onHover, overlays = [], overlayOpacity = 0.5 }, ref) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -200,6 +205,22 @@ export const Board = forwardRef<BoardHandle, Props>(function Board({ canvas, boa
           height={height}
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale || fit})` }}
         />
+        {overlays.length > 0 && (
+          // Same transform as the board; overflow clips a template that runs past the edge.
+          <div
+            className="board-templates"
+            style={{
+              width,
+              height,
+              opacity: overlayOpacity,
+              transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale || fit})`,
+            }}
+          >
+            {overlays.map((o) => (
+              <img key={o.id} src={o.url} alt="" style={{ left: o.x, top: o.y, width: o.width, height: o.height }} />
+            ))}
+          </div>
+        )}
         <canvas ref={overlayRef} className="board-overlay" />
       </div>
       <div className="zoom">

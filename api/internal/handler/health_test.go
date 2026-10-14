@@ -8,7 +8,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	res, err := NewServer("test", nil, nil, nil, nil).GetHealth(context.Background(), apigen.GetHealthRequestObject{})
+	res, err := NewServer("test", nil, nil, nil, nil, nil).GetHealth(context.Background(), apigen.GetHealthRequestObject{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,7 +19,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestRoutesNeedAUser(t *testing.T) {
-	s := NewServer("test", nil, nil, nil, nil)
+	s := NewServer("test", nil, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	if res, _ := s.ListCanvases(ctx, apigen.ListCanvasesRequestObject{}); !is[apigen.ListCanvases401JSONResponse](res) {

@@ -195,6 +195,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/spaces/{spaceId}/canvases/{canvasId}/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Ready templates of the canvas, newest first. Each url is signed and expires at urlExpiresAt. */
+        get: operations["listTemplates"];
+        put?: never;
+        /**
+         * @description Start an upload. Returns a signed URL, valid 5 minutes: PUT the file there
+         *     with uploadHeaders, then call complete.
+         */
+        post: operations["createTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Check the uploaded file. Ready, or rejected (422) and the file deleted. */
+        post: operations["completeTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description The uploader or the space's owner. */
+        delete: operations["deleteTemplate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -317,6 +372,51 @@ export interface components {
             y?: number;
             color?: number;
             error?: string;
+        };
+        CreateTemplateRequest: {
+            bytes: number;
+            /** @enum {string} */
+            contentType: "image/png";
+            /** @description Column of the template's top-left cell */
+            x: number;
+            /** @description Row of the template's top-left cell */
+            y: number;
+        };
+        TemplateUpload: {
+            /** Format: uuid */
+            templateId: string;
+            uploadUrl: string;
+            /** @description Headers the PUT must send exactly. */
+            uploadHeaders: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        Template: {
+            /** Format: uuid */
+            id: string;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            uploadedBy: {
+                /**
+                 * Format: uuid
+                 * @description Absent if the account is gone
+                 */
+                id?: string;
+                name: string;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Signed download URL */
+            url: string;
+            /** Format: date-time */
+            urlExpiresAt: string;
+        };
+        TemplateList: {
+            templates: components["schemas"]["Template"][];
         };
     };
     responses: never;
@@ -822,6 +922,264 @@ export interface operations {
             };
             /** @description Error */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateList"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Upload ready */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateUpload"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    completeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ready */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

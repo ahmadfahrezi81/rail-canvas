@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Canvas struct {
@@ -75,6 +76,23 @@ type SpaceMember struct {
 	Role         string
 	LastPlacedAt *time.Time
 	JoinedAt     time.Time
+}
+
+type Template struct {
+	ID           uuid.UUID
+	SpaceID      uuid.UUID
+	CanvasID     uuid.UUID
+	UploadedBy   uuid.NullUUID
+	ObjectKey    string
+	ThumbKey     pgtype.Text
+	X            int16
+	Y            int16
+	Width        pgtype.Int2
+	Height       pgtype.Int2
+	Bytes        int32
+	Status       string
+	RejectReason pgtype.Text
+	CreatedAt    time.Time
 }
 
 type User struct {

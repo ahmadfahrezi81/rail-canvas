@@ -54,7 +54,12 @@ func run() error {
 	auth := service.NewAuth(pool)
 	canvases := service.NewCanvases(pool)
 	hub := realtime.NewHub(auth, canvases, cfg.CORSOrigins)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub))
+	var objects service.ObjectStore
+	if cfg.Bucket != nil {
+		objects = platform.NewBucket(platform.BucketConfig(*cfg.Bucket))
+	}
+	slog.Info("templates", "enabled", objects != nil)
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub), service.NewTemplates(pool, objects))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.2.0
+  version: 0.3.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -12,6 +12,18 @@ x-error-response: &error
 
 x-space-id: &spaceId
   name: spaceId
+  in: path
+  required: true
+  schema: { type: string, format: uuid }
+
+x-canvas-id: &canvasId
+  name: canvasId
+  in: path
+  required: true
+  schema: { type: string, format: uuid }
+
+x-template-id: &templateId
+  name: templateId
   in: path
   required: true
   schema: { type: string, format: uuid }
@@ -219,6 +231,73 @@ paths:
         "401": *error
         "404": *error
 
+  /spaces/{spaceId}/canvases/{canvasId}/templates:
+    get:
+      operationId: listTemplates
+      description: Ready templates of the canvas, newest first. Each url is signed and expires at urlExpiresAt.
+      parameters: [*spaceId, *canvasId]
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateList" }
+        "401": *error
+        "404": *error
+        "503": *error
+    post:
+      operationId: createTemplate
+      description: |
+        Start an upload. Returns a signed URL, valid 5 minutes: PUT the file there
+        with uploadHeaders, then call complete.
+      parameters: [*spaceId, *canvasId]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTemplateRequest" }
+      responses:
+        "201":
+          description: Upload ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateUpload" }
+        "400": *error
+        "401": *error
+        "404": *error
+        "409": *error
+        "429": *error
+        "503": *error
+
+  /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete:
+    post:
+      operationId: completeTemplate
+      description: Check the uploaded file. Ready, or rejected (422) and the file deleted.
+      parameters: [*spaceId, *canvasId, *templateId]
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+        "401": *error
+        "404": *error
+        "409": *error
+        "422": *error
+        "503": *error
+
+  /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}:
+    delete:
+      operationId: deleteTemplate
+      description: The uploader or the space's owner.
+      parameters: [*spaceId, *canvasId, *templateId]
+      responses:
+        "204": { description: Deleted }
+        "401": *error
+        "403": *error
+        "404": *error
+        "503": *error
+
 components:
   securitySchemes:
     bearer:
@@ -390,3 +469,51 @@ components:
         y: { type: integer }
         color: { type: integer }
         error: { type: string }
+
+    CreateTemplateRequest:
+      type: object
+      required: [bytes, contentType, x, y]
+      properties:
+        bytes: { type: integer, minimum: 1, maximum: 1048576 }
+        contentType: { type: string, enum: [image/png] }
+        x: { type: integer, minimum: 0, maximum: 255, description: Column of the template's top-left cell }
+        y: { type: integer, minimum: 0, maximum: 255, description: Row of the template's top-left cell }
+
+    TemplateUpload:
+      type: object
+      required: [templateId, uploadUrl, uploadHeaders, expiresAt]
+      properties:
+        templateId: { type: string, format: uuid }
+        uploadUrl: { type: string }
+        uploadHeaders:
+          type: object
+          description: Headers the PUT must send exactly.
+          additionalProperties: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    Template:
+      type: object
+      required: [id, x, y, width, height, uploadedBy, createdAt, url, urlExpiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        x: { type: integer }
+        y: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+        uploadedBy:
+          type: object
+          required: [name]
+          properties:
+            id: { type: string, format: uuid, description: Absent if the account is gone }
+            name: { type: string }
+        createdAt: { type: string, format: date-time }
+        url: { type: string, description: Signed download URL }
+        urlExpiresAt: { type: string, format: date-time }
+
+    TemplateList:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items: { $ref: "#/components/schemas/Template" }

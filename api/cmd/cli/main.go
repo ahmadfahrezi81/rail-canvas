@@ -19,7 +19,9 @@ const usage = `usage: cli <command> [flags]
 
 commands:
   bootstrap   create the first space and its owner (once; refuses if users exist)
-  migrate     apply pending migrations (MIGRATE_DATABASE_URL, as postgres)`
+  migrate     apply pending migrations (MIGRATE_DATABASE_URL, as postgres)
+  bucket-cors let CORS_ORIGINS upload to and download from the templates bucket (S3_*)
+  predeploy   migrate, then bucket-cors: Railway's pre-deploy command`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,6 +34,12 @@ func main() {
 		err = bootstrap(os.Args[2:])
 	case "migrate":
 		err = migrateCmd()
+	case "bucket-cors":
+		err = bucketCORS()
+	case "predeploy":
+		if err = migrateCmd(); err == nil {
+			err = bucketCORS()
+		}
 	default:
 		err = fmt.Errorf("unknown command %q\n\n%s", os.Args[1], usage)
 	}

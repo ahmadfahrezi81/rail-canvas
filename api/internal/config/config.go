@@ -19,6 +19,12 @@ type Config struct {
 	DatabaseURL     string   // connects as the app role
 	CORSOrigins     []string // browser origins allowed to call the API
 	RealIPHeader    string   // set by Railway's edge; a client cannot forge it
+	Bucket          *Bucket  // nil: no bucket, the template endpoints answer 503
+}
+
+// Bucket is the templates bucket's S3_* variables (references set in .railway/railway.ts).
+type Bucket struct {
+	Name, AccessKeyID, SecretAccessKey, Region, Endpoint string
 }
 
 func Load() (Config, error) {
@@ -47,6 +53,17 @@ func Load() (Config, error) {
 		if o = strings.TrimSpace(o); o != "" {
 			cfg.CORSOrigins = append(cfg.CORSOrigins, o)
 		}
+	}
+
+	b := Bucket{
+		Name: os.Getenv("S3_BUCKET"), AccessKeyID: os.Getenv("S3_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("S3_SECRET_ACCESS_KEY"),
+		Region: os.Getenv("S3_REGION"), Endpoint: os.Getenv("S3_ENDPOINT"),
+	}
+	switch set := b != (Bucket{}); {
+	case set && (b.Name == "" || b.AccessKeyID == "" || b.SecretAccessKey == "" || b.Region == "" || b.Endpoint == ""):
+		return Config{}, errors.New("S3_*: set all five or none")
+	case set:
+		cfg.Bucket = &b
 	}
 
 	return cfg, nil

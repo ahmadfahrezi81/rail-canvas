@@ -17,6 +17,21 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for CreateTemplateRequestContentType.
+const (
+	Imagepng CreateTemplateRequestContentType = "image/png"
+)
+
+// Valid indicates whether the value is a known member of the CreateTemplateRequestContentType enum.
+func (e CreateTemplateRequestContentType) Valid() bool {
+	switch e {
+	case Imagepng:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SpaceMembershipRole.
 const (
 	Member SpaceMembershipRole = "member"
@@ -110,6 +125,21 @@ type CreateCanvasRequest struct {
 	Name            string `json:"name"`
 }
 
+// CreateTemplateRequest defines model for CreateTemplateRequest.
+type CreateTemplateRequest struct {
+	Bytes       int                              `json:"bytes"`
+	ContentType CreateTemplateRequestContentType `json:"contentType"`
+
+	// X Column of the template's top-left cell
+	X int `json:"x"`
+
+	// Y Row of the template's top-left cell
+	Y int `json:"y"`
+}
+
+// CreateTemplateRequestContentType defines model for CreateTemplateRequest.ContentType.
+type CreateTemplateRequestContentType string
+
 // Error defines model for Error.
 type Error struct {
 	Error string `json:"error"`
@@ -188,6 +218,40 @@ type SpaceMembership struct {
 // SpaceMembershipRole defines model for SpaceMembership.Role.
 type SpaceMembershipRole string
 
+// Template defines model for Template.
+type Template struct {
+	CreatedAt  time.Time          `json:"createdAt"`
+	Height     int                `json:"height"`
+	Id         openapi_types.UUID `json:"id"`
+	UploadedBy struct {
+		// Id Absent if the account is gone
+		Id   *openapi_types.UUID `json:"id,omitempty"`
+		Name string              `json:"name"`
+	} `json:"uploadedBy"`
+
+	// Url Signed download URL
+	Url          string    `json:"url"`
+	UrlExpiresAt time.Time `json:"urlExpiresAt"`
+	Width        int       `json:"width"`
+	X            int       `json:"x"`
+	Y            int       `json:"y"`
+}
+
+// TemplateList defines model for TemplateList.
+type TemplateList struct {
+	Templates []Template `json:"templates"`
+}
+
+// TemplateUpload defines model for TemplateUpload.
+type TemplateUpload struct {
+	ExpiresAt  time.Time          `json:"expiresAt"`
+	TemplateId openapi_types.UUID `json:"templateId"`
+
+	// UploadHeaders Headers the PUT must send exactly.
+	UploadHeaders map[string]string `json:"uploadHeaders"`
+	UploadUrl     string            `json:"uploadUrl"`
+}
+
 // User defines model for User.
 type User struct {
 	DisplayName string             `json:"displayName"`
@@ -240,6 +304,9 @@ type CreateCanvasJSONRequestBody = CreateCanvasRequest
 // PlacePixelJSONRequestBody defines body for PlacePixel for application/json ContentType.
 type PlacePixelJSONRequestBody = PlacePixelRequest
 
+// CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
+type CreateTemplateJSONRequestBody = CreateTemplateRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -272,6 +339,18 @@ type ServerInterface interface {
 
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
+	ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates)
+	CreateTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
+	// (DELETE /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId})
+	DeleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
+	CompleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID)
 
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
@@ -331,6 +410,26 @@ func (_ Unimplemented) GetCanvasBoard(w http.ResponseWriter, r *http.Request, sp
 
 // (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 func (_ Unimplemented) PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
+func (_ Unimplemented) ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/{spaceId}/canvases/{canvasId}/templates)
+func (_ Unimplemented) CreateTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId})
+func (_ Unimplemented) DeleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
+func (_ Unimplemented) CompleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -559,6 +658,164 @@ func (siw *ServerInterfaceWrapper) PlacePixel(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// ListTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListTemplates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTemplates(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTemplate(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTemplate(w, r, spaceId, canvasId, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CompleteTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteTemplate(w, r, spaceId, canvasId, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateInvite operation middleware
 func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
@@ -747,6 +1004,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/board", wrapper.GetCanvasBoard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/templates", wrapper.ListTemplates)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/templates", wrapper.CreateTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete", wrapper.CompleteTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}", wrapper.DeleteTemplate)
 	})
 
 	return r
@@ -1281,6 +1550,347 @@ func (response PlacePixel429JSONResponse) VisitPlacePixelResponse(w http.Respons
 	return err
 }
 
+type ListTemplatesRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+}
+
+type ListTemplatesResponseObject interface {
+	VisitListTemplatesResponse(w http.ResponseWriter) error
+}
+
+type ListTemplates200JSONResponse TemplateList
+
+func (response ListTemplates200JSONResponse) VisitListTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTemplates401JSONResponse Error
+
+func (response ListTemplates401JSONResponse) VisitListTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTemplates404JSONResponse Error
+
+func (response ListTemplates404JSONResponse) VisitListTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTemplates503JSONResponse Error
+
+func (response ListTemplates503JSONResponse) VisitListTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplateRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+	Body     *CreateTemplateJSONRequestBody
+}
+
+type CreateTemplateResponseObject interface {
+	VisitCreateTemplateResponse(w http.ResponseWriter) error
+}
+
+type CreateTemplate201JSONResponse TemplateUpload
+
+func (response CreateTemplate201JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate400JSONResponse Error
+
+func (response CreateTemplate400JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate401JSONResponse Error
+
+func (response CreateTemplate401JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate404JSONResponse Error
+
+func (response CreateTemplate404JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate409JSONResponse Error
+
+func (response CreateTemplate409JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate429JSONResponse Error
+
+func (response CreateTemplate429JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTemplate503JSONResponse Error
+
+func (response CreateTemplate503JSONResponse) VisitCreateTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTemplateRequestObject struct {
+	SpaceId    openapi_types.UUID `json:"spaceId"`
+	CanvasId   openapi_types.UUID `json:"canvasId"`
+	TemplateId openapi_types.UUID `json:"templateId"`
+}
+
+type DeleteTemplateResponseObject interface {
+	VisitDeleteTemplateResponse(w http.ResponseWriter) error
+}
+
+type DeleteTemplate204Response struct {
+}
+
+func (response DeleteTemplate204Response) VisitDeleteTemplateResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteTemplate401JSONResponse Error
+
+func (response DeleteTemplate401JSONResponse) VisitDeleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTemplate403JSONResponse Error
+
+func (response DeleteTemplate403JSONResponse) VisitDeleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTemplate404JSONResponse Error
+
+func (response DeleteTemplate404JSONResponse) VisitDeleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTemplate503JSONResponse Error
+
+func (response DeleteTemplate503JSONResponse) VisitDeleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplateRequestObject struct {
+	SpaceId    openapi_types.UUID `json:"spaceId"`
+	CanvasId   openapi_types.UUID `json:"canvasId"`
+	TemplateId openapi_types.UUID `json:"templateId"`
+}
+
+type CompleteTemplateResponseObject interface {
+	VisitCompleteTemplateResponse(w http.ResponseWriter) error
+}
+
+type CompleteTemplate200JSONResponse Template
+
+func (response CompleteTemplate200JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplate401JSONResponse Error
+
+func (response CompleteTemplate401JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplate404JSONResponse Error
+
+func (response CompleteTemplate404JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplate409JSONResponse Error
+
+func (response CompleteTemplate409JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplate422JSONResponse Error
+
+func (response CompleteTemplate422JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTemplate503JSONResponse Error
+
+func (response CompleteTemplate503JSONResponse) VisitCompleteTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateInviteRequestObject struct {
 	SpaceId openapi_types.UUID `json:"spaceId"`
 }
@@ -1412,6 +2022,18 @@ type StrictServerInterface interface {
 
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(ctx context.Context, request PlacePixelRequestObject) (PlacePixelResponseObject, error)
+
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
+	ListTemplates(ctx context.Context, request ListTemplatesRequestObject) (ListTemplatesResponseObject, error)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates)
+	CreateTemplate(ctx context.Context, request CreateTemplateRequestObject) (CreateTemplateResponseObject, error)
+
+	// (DELETE /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId})
+	DeleteTemplate(ctx context.Context, request DeleteTemplateRequestObject) (DeleteTemplateResponseObject, error)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
+	CompleteTemplate(ctx context.Context, request CompleteTemplateRequestObject) (CompleteTemplateResponseObject, error)
 
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
@@ -1737,6 +2359,123 @@ func (sh *strictHandler) PlacePixel(w http.ResponseWriter, r *http.Request, spac
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PlacePixelResponseObject); ok {
 		if err := validResponse.VisitPlacePixelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTemplates operation middleware
+func (sh *strictHandler) ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request ListTemplatesRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTemplates(ctx, request.(ListTemplatesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTemplates")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTemplatesResponseObject); ok {
+		if err := validResponse.VisitListTemplatesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTemplate operation middleware
+func (sh *strictHandler) CreateTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request CreateTemplateRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	var body CreateTemplateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTemplate(ctx, request.(CreateTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTemplateResponseObject); ok {
+		if err := validResponse.VisitCreateTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteTemplate operation middleware
+func (sh *strictHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID) {
+	var request DeleteTemplateRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+	request.TemplateId = templateId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteTemplate(ctx, request.(DeleteTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteTemplateResponseObject); ok {
+		if err := validResponse.VisitDeleteTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteTemplate operation middleware
+func (sh *strictHandler) CompleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID) {
+	var request CompleteTemplateRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+	request.TemplateId = templateId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteTemplate(ctx, request.(CompleteTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteTemplateResponseObject); ok {
+		if err := validResponse.VisitCompleteTemplateResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
