@@ -18,7 +18,8 @@ import (
 const usage = `usage: cli <command> [flags]
 
 commands:
-  bootstrap   create the first space and its owner (once; refuses if users exist)`
+  bootstrap   create the first space and its owner (once; refuses if users exist)
+  migrate     apply pending migrations (MIGRATE_DATABASE_URL, as postgres)`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -29,6 +30,8 @@ func main() {
 	switch os.Args[1] {
 	case "bootstrap":
 		err = bootstrap(os.Args[2:])
+	case "migrate":
+		err = migrateCmd()
 	default:
 		err = fmt.Errorf("unknown command %q\n\n%s", os.Args[1], usage)
 	}
