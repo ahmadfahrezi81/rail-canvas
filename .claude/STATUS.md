@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-14.** Update this file at the end of every session.
+**Updated 2026-10-14, end of session.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -12,6 +12,8 @@
 | 4 | Vite + React frontend on Cloudflare Pages, CORS | 003 |
 | 5 | Login, invites, spaces in the URL, rate limits, `cli bootstrap` | 004 |
 | 6 | Placing pixels with a cooldown, live over WebSocket, zoom/pan/grid, optimistic draw | 005 |
+| 7 | CI on GitHub Actions (api, contract, web, docker); `main` protected by a ruleset | 006 |
+| 7b | Railway settings as code (`.railway/railway.ts`), migrations in the pre-deploy step, Wait for CI; one rollback practised | 007 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -20,34 +22,29 @@
 
 ## Next
 
-**Step 7 — CI: merged 2026-10-14** (task 006). CI runs on every pull request and push to `main`.
-But `railway.api.json` was never read by Railway (Config as Code is deprecated), so the
-pre-deploy migration step is **not live yet**.
+**Step 8 — template upload through a Railway Storage Bucket** (task 008, not written yet).
+Start by writing it and getting approval. Check bucket CORS first (Notion open question).
+A bucket is a Railway resource, so it is added in `.railway/railway.ts` and goes through a plan.
 
-**Step 7b — Railway as code** (task 007), in progress on branch `infra/railway-iac`:
-`.railway/railway.ts` pulled from production, with start command, pre-deploy
-`/app/cli migrate` and Wait for CI added. Local plan: 2 to change, 0 to destroy. Remaining:
-
-1. Owner: Railway → Project Settings → Tokens → new token for `production` (`github-iac`); GitHub → Settings → Secrets and variables → Actions → `RAILWAY_TOKEN`
-2. Pull request; read the plan comment together; merge; the apply run goes green
-3. Check: deploy log shows `migrations: up to date`; `/health`; place a pixel
-4. GitHub rule on `main` (pull request, checks `api`, `contract`, `web`, `docker`, no force push); practise one rollback
-5. Notion: add Step 7b, tick 7 and 7b
-
-The laptop has the Railway CLI (brew), logged in, linked to `rail-canvas` / `production`.
-From now on: work on a branch, merge by pull request.
+How changes reach production now: branch → pull request → CI's four checks (required by the
+`main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli migrate` →
+deploy. A change to `.railway/` also gets a Railway plan comment and is applied on merge.
 
 ## Open items
 
 - **Postgres public TCP proxy: deleted 2026-10-04, and stays deleted.** The laptop cannot reach the database; the live app reaches it over the private network, and migrations run in Railway's pre-deploy command. `MIGRATE_DATABASE_URL` and `DATABASE_URL` in local `.env` are stale; `make migrate-up`, `make test-db` and `make db-test-setup` no longer work from the laptop (CI runs the database tests). `rail_canvas_test` on the production server is no longer migrated: delete it once nothing needs it.
-- **`DEV_SPACE_ID`** on the Railway `api` service: owner was asked to delete it after Step 5. Unused by the code either way; check and remove if still there.
+- **`DEV_SPACE_ID`** is gone from the `api` service (the pull from Railway on 2026-10-14 lists only `APP_DB_PASSWORD`, `CORS_ORIGINS`, `DATABASE_URL`, `MIGRATE_DATABASE_URL`).
+- **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
 ## Not in git (lives on the owner's laptop)
 
 - `rail-canvas/.env`: `MIGRATE_DATABASE_URL` (postgres, public proxy), `APP_DB_PASSWORD`, `DATABASE_URL` (app role, public proxy, for local runs), `OWNER_PASSWORD`, plus leftover `DEV_SPACE_ID` (ignored)
 - `rail-canvas/web/.env.local`: `VITE_API_URL=http://localhost:8080`
-- Railway variables on `api`: `APP_DB_PASSWORD`, `DATABASE_URL` (references), `CORS_ORIGINS`
+- Railway variable values on `api` (names are in `.railway/railway.ts`): `APP_DB_PASSWORD`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` (references), `CORS_ORIGINS`
+- GitHub secret `RAILWAY_TOKEN`: Railway project token `github-iac`, `production`
+- GitHub ruleset `main` (made from a JSON import, not kept in git)
+- The laptop's Railway CLI login and link (`rail-canvas` / `production`)
 
 ## Test database
 
