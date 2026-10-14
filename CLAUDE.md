@@ -183,7 +183,7 @@ Joining later: timeout and body size limit.
 
 Railway's **Wait for CI** (`checkSuites` in `.railway/railway.ts`) holds a deploy until the push run on `main` is green.
 
-**Migrations run on deploy, never on API boot.** `.railway/railway.ts` sets the pre-deploy command `/app/cli migrate`: after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
+**Migrations run on deploy, never on API boot.** `.railway/railway.ts` sets the pre-deploy command `/app/cli predeploy` (`migrate`, then `bucket-cors`): after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
 
 Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/health`. Railway sends `SIGTERM` before replacing a deploy; the API stops accepting, lets in-flight requests finish within `SHUTDOWN_TIMEOUT_SECONDS`, then exits.
 
