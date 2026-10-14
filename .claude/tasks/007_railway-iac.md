@@ -1,8 +1,12 @@
 # Task 007 — Railway settings live in git (Infrastructure as Code)
 
-**Status: approved 2026-10-14. Built on branch `infra/railway-iac`; local plan shows exactly the intended changes. Waiting for the token (clicks 2 and 3), then the pull request.**
+**Status: live 2026-10-14 (pull request #2). Apply run green; deploy log shows `migrations: up to date`; Wait for CI held the deploy until CI passed. `main` ruleset on. Rollback practised: rolled back to the Step 7 deployment (a pixel placed, 201), then redeployed the latest; the plan stayed up to date.**
 
 ## What changed from the plan
+
+- **The GitHub ruleset** was imported from a JSON file by the owner (pull request required, squash only, checks `api`, `contract`, `web`, `docker`, no force push or deletion, no bypass). Not kept in git: GitHub does not read it from the repo.
+- **Rollback restores the old deployment's settings**, so rolling back to a deployment from before this step runs no pre-deploy step. The older-binary migration case is covered by `TestMigrate` instead.
+- **CI's pnpm version now comes from the root `package.json` only** (`packageManager`); `pnpm/action-setup` refuses two.
 
 - **The pull also found Wait for CI**: it is `checkSuites` on the GitHub source, so it moves into the file (`true`) instead of being a dashboard click.
 - **Variables are managed by the file** (`--variables=managed`, which the CLI requires choosing): all four (`APP_DB_PASSWORD`, `CORS_ORIGINS`, `DATABASE_URL`, `MIGRATE_DATABASE_URL`) are declared as `preserve()`, so the values stay on Railway.
