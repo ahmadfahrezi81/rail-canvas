@@ -3,9 +3,16 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
-    "watchPatterns": ["api/**", "Dockerfile"]
+    "watchPatterns": [
+      "api/**",
+      "Dockerfile",
+      "railway.api.json"
+    ]
   },
   "deploy": {
+    "preDeployCommand": [
+      "/app/cli migrate"
+    ],
     "startCommand": "/app/api",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 60,

@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-04, end of session.** Update this file at the end of every session.
+**Updated 2026-10-14.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -20,15 +20,20 @@
 
 ## Next
 
-**Step 7 — CI.** Task 006 is not written yet. Start by writing it and getting approval.
-Scope from Notion: GitHub Actions on every pull request (vet, test, contract check,
-migrations against a throwaway Postgres, Docker build, frontend build), branch
-protection on `main`, Railway waits for green checks, migrations run from CI,
-practise one rollback. Then remove the Postgres public TCP proxy.
+**Step 7 — CI, in progress.** Task 006 approved 2026-10-14. Built on branch
+`ci/step-7`, pull request open. Remaining, in order:
+
+1. Owner: Railway `api` → Variables → `MIGRATE_DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (**before merging**, or the first pre-deploy fails)
+2. Merge; watch the pre-deploy log say "migrations: up to date", check `/health` and the site
+3. Owner: Railway Wait for CI on, pre-deploy timeout 120 s; GitHub rule on `main` (pull request, checks `api`, `contract`, `web`, `docker`, no force push)
+4. Practise one rollback (redeploy the previous deployment, then the latest)
+5. Tick Step 7 in Notion
+
+From now on: work on a branch, merge by pull request.
 
 ## Open items
 
-- **Postgres public TCP proxy: deleted 2026-10-04** (verified: the laptop cannot reach the database; the live app still can, over the private network). `MIGRATE_DATABASE_URL` and the local `DATABASE_URL` in `.env` are therefore stale. If Step 7 needs the laptop to reach the database before CI runs migrations, re-add it (Postgres → Settings → Networking → TCP Proxy, port 5432) and update both URLs in `.env` with the new host and port. Aim: CI runs migrations, so it never comes back.
+- **Postgres public TCP proxy: deleted 2026-10-04, and stays deleted.** The laptop cannot reach the database; the live app reaches it over the private network, and migrations run in Railway's pre-deploy command. `MIGRATE_DATABASE_URL` and `DATABASE_URL` in local `.env` are stale; `make migrate-up`, `make test-db` and `make db-test-setup` no longer work from the laptop (CI runs the database tests). `rail_canvas_test` on the production server is no longer migrated: delete it once nothing needs it.
 - **`DEV_SPACE_ID`** on the Railway `api` service: owner was asked to delete it after Step 5. Unused by the code either way; check and remove if still there.
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 

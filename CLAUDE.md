@@ -16,11 +16,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 make dev             # run the API on :8080 (reads .env)
-make check           # gofmt, go vet, go test — what CI runs on the API
+make check           # gofmt, go vet, go test, frontend build — most of what CI runs
 make test-db         # tests including the database ones, against rail_canvas_test
 make generate        # regenerate apigen (openapi.yaml) and store (sqlc)
 make migrate-new name=create_things   # never name a migration by hand
-make migrate-up      # apply migrations (MIGRATE_DATABASE_URL, as postgres)
+make migrate-up      # apply migrations by hand (needs a public database address; production migrates on deploy)
 make web-dev         # frontend on :5173 (needs web/.env.local with VITE_API_URL)
 make help            # all targets
 ```
@@ -50,8 +50,8 @@ Learning is the point. The structure matters more than the feature list.
 ├── api/                      # Go module (github.com/ahmadfahrezi81/rail-canvas/api)
 │   ├── openapi.yaml          # the API contract
 │   ├── cmd/api/              # the HTTP service; Railway start command /app/api
-│   ├── cmd/cli/              # admin commands (bootstrap); /app/cli in the image
-│   ├── db/migrations/        # goose
+│   ├── cmd/cli/              # admin commands (bootstrap, migrate); /app/cli in the image
+│   ├── db/migrations/        # goose; embedded into the binary by db/embed.go
 │   ├── db/queries/           # sqlc input
 │   └── internal/
 │       ├── apigen/           # generated from openapi.yaml
@@ -71,6 +71,7 @@ Learning is the point. The structure matters more than the feature list.
 │       └── components/       # use hooks, never the client
 ├── Dockerfile                # one image, every binary under /app/
 ├── railway.api.json          # Railway config-as-code for the api service
+├── .github/workflows/ci.yml  # CI: api, contract, web, docker
 └── .claude/tasks/            # one plan per step
 ```
 
@@ -155,14 +156,25 @@ Joining later: timeout and body size limit.
 - **Roles.** Migrations run as `postgres`. The API connects as `app` (no superuser, no BYPASSRLS), whose password is set by `make db-app-password`, never in git. Tests use `SET ROLE app` and fail if they find themselves a superuser.
 - **Postgres is the source of truth.** Redis and the bucket only hold what can be rebuilt or re-uploaded.
 - **Everything outside Postgres carries the space in its name**: Redis keys `space:{s}:…`, bucket paths `spaces/{s}/…`.
-- **Migrations**: `make migrate-new name=…`, never a hand-named file. One focused change, backward-compatible (add first, drop later). Never run on API boot. Seed data goes in `db/seed/` scripts, never in a migration.
+- **Migrations**: `make migrate-new name=…`, never a hand-named file. One focused change, backward-compatible (add first, drop later). Applied by the pre-deploy command, never on API boot. Seed data goes in `db/seed/` scripts, never in a migration.
 - **Every read declares its freshness** in a comment: `live`, a TTL, or `immutable` — as in tea-pos.
 - **A deliberate choice gets its reason written next to it.** Undocumented, it decays into an accident.
 - **Secrets** live in Railway variables only — never in git, never in the Vite build. Every variable is listed in `.env.example`.
 
 ---
 
-## Deploying
+## CI and deploying
+
+**Work goes on a branch, then a pull request.** `main` is protected: the four CI jobs must pass. `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+- `api` — gofmt, vet, `cli migrate` on a throwaway `postgres:18`, then `go test -race` with the database tests
+- `contract` — `make generate`, then fail on any change: generated code is out of date
+- `web` — `pnpm build`
+- `docker` — builds the `Dockerfile`, pushes nothing
+
+Railway's **Wait for CI** holds a deploy until the push run on `main` is green.
+
+**Migrations run on deploy, never on API boot.** `railway.api.json` sets the pre-deploy command `/app/cli migrate`: after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
 
 Railway builds the root `Dockerfile`. The api service reads `railway.api.json` (set as the service's config file path): healthcheck `/health`, start command `/app/api`, restart on failure. Railway sends `SIGTERM` before replacing a deploy; the API stops accepting, lets in-flight requests finish within `SHUTDOWN_TIMEOUT_SECONDS`, then exits.
 
