@@ -1,0 +1,8 @@
+{
+  "name": "rail-canvas",
+  "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "devDependencies": {
+    "railway": "3.16.0"
+  }
+}

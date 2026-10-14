@@ -1,0 +1,23 @@
+# A pull request that changes .railway/ gets Railway's plan as a comment. Merging approves it.
+name: Railway plan
+
+on:
+  pull_request:
+    paths: [".railway/**"]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write # lets the comment come from the Railway bot when its GitHub App is installed
+
+jobs:
+  plan:
+    # Fork pull requests get no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: railwayapp/config@v1
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}

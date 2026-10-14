@@ -1,0 +1,24 @@
+# On merge, applies exactly the plan pinned to the pull request. A direct push to main has no plan and fails.
+name: Railway apply
+
+on:
+  push:
+    branches: [main]
+    paths: [".railway/**"]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read # to find the merged pull request and its plan
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: railwayapp/config@v1
+        with:
+          command: apply
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          # A plan that deletes anything (the database included) fails here. Deletes are done by hand.
+          confirm-destructive: false

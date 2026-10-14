@@ -20,15 +20,21 @@
 
 ## Next
 
-**Step 7 — CI, in progress.** Task 006 approved 2026-10-14. Built on branch
-`ci/step-7`, pull request open. Remaining, in order:
+**Step 7 — CI: merged 2026-10-14** (task 006). CI runs on every pull request and push to `main`.
+But `railway.api.json` was never read by Railway (Config as Code is deprecated), so the
+pre-deploy migration step is **not live yet**.
 
-1. Owner: Railway `api` → Variables → `MIGRATE_DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (**before merging**, or the first pre-deploy fails)
-2. Merge; watch the pre-deploy log say "migrations: up to date", check `/health` and the site
-3. Owner: Railway Wait for CI on, pre-deploy timeout 120 s; GitHub rule on `main` (pull request, checks `api`, `contract`, `web`, `docker`, no force push)
-4. Practise one rollback (redeploy the previous deployment, then the latest)
-5. Tick Step 7 in Notion
+**Step 7b — Railway as code** (task 007), in progress on branch `infra/railway-iac`:
+`.railway/railway.ts` pulled from production, with start command, pre-deploy
+`/app/cli migrate` and Wait for CI added. Local plan: 2 to change, 0 to destroy. Remaining:
 
+1. Owner: Railway → Project Settings → Tokens → new token for `production` (`github-iac`); GitHub → Settings → Secrets and variables → Actions → `RAILWAY_TOKEN`
+2. Pull request; read the plan comment together; merge; the apply run goes green
+3. Check: deploy log shows `migrations: up to date`; `/health`; place a pixel
+4. GitHub rule on `main` (pull request, checks `api`, `contract`, `web`, `docker`, no force push); practise one rollback
+5. Notion: add Step 7b, tick 7 and 7b
+
+The laptop has the Railway CLI (brew), logged in, linked to `rail-canvas` / `production`.
 From now on: work on a branch, merge by pull request.
 
 ## Open items
