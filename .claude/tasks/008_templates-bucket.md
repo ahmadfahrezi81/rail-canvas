@@ -1,6 +1,6 @@
 # Task 008 — Templates: upload a reference image to a bucket, overlay it on the board
 
-**Status: bucket live 2026-10-14 (pull request #4, `sin`). Feature built on branch `feat/templates`; all tests green; end-to-end against the real bucket from the laptop passed. Pull request 2 open.**
+**Status: live 2026-10-15 (pull requests #4 bucket, #5 feature, #6 pre-deploy). The first migration through the pre-deploy step applied `create_templates`; the deploy log shows `bucket-cors: allowed https://rail-canvas.pages.dev, http://localhost:5173`. End-to-end checked against the real bucket from the laptop before merging; the owner chose not to try it by hand.**
 
 ## Spike results (2026-10-14, from the laptop)
 
