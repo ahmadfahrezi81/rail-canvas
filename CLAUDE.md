@@ -70,13 +70,14 @@ Learning is the point. The structure matters more than the feature list.
 │       ├── lib/hooks/        # SWR hooks over the client
 │       └── components/       # use hooks, never the client
 ├── Dockerfile                # one image, every binary under /app/
+├── ops/backup/               # nightly pg_dump to R2 (cron service "backup"), and restore.sh
 ├── .railway/railway.ts       # Railway project as code: services, settings, variables
 ├── package.json              # only the Railway SDK, so .railway/railway.ts can import it
 ├── .github/workflows/ci.yml  # CI: api, contract, web, docker
 └── .claude/tasks/            # one plan per step
 ```
 
-Planned, created by the step that needs it: `cmd/worker/` (Step 12), `ops/backup/` (Step 9), `ops/loadtest/` (Step 17), `functions/webhook/` (Step 15). The full tree is in Notion under "Repo and conventions".
+Planned, created by the step that needs it: `cmd/worker/` (Step 12), `ops/loadtest/` (Step 17), `functions/webhook/` (Step 15). The full tree is in Notion under "Repo and conventions".
 
 ---
 
@@ -179,7 +180,7 @@ Joining later: timeout and body size limit.
 - `api` — gofmt, vet, `cli migrate` on a throwaway `postgres:18`, then `go test -race` with the database tests
 - `contract` — `make generate`, then fail on any change: generated code is out of date
 - `web` — `pnpm build`
-- `docker` — builds the `Dockerfile`, pushes nothing
+- `docker` — builds the `Dockerfile` and `ops/backup/Dockerfile`, shellchecks the backup scripts, pushes nothing
 
 Railway's **Wait for CI** (`checkSuites` in `.railway/railway.ts`) holds a deploy until the push run on `main` is green.
 
