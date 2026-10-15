@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-15 (second session), end of session.** Update this file at the end of every session.
+**Updated 2026-10-16, end of session.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -16,6 +16,7 @@
 | 7b | Railway settings as code (`.railway/railway.ts`), migrations in the pre-deploy step, Wait for CI; one rollback practised | 007 |
 | 8 | Templates: PNG upload straight to a private bucket (`templates`, Singapore) with signed URLs, overlay on the board. Checked again on production 2026-10-15 (a 32×32 test template on pixel-club's canvas at 10, 10) | 008 |
 | 9 | Nightly `pg_dump` to Cloudflare R2 (cron service `backup`, 19:00 UTC), healthchecks.io dead-man's switch, one real restore with matching row counts, `docs/runbook.md` | 009 |
+| 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -24,10 +25,12 @@
 
 ## Next
 
-**Step 10 — an hourly canvas snapshot and one webhook** (task 010, not written yet). From
-Notion: an in-process ticker in the API renders each canvas with Go's `image/png` into
-`snapshots` and the bucket (`spaces/{s}/snapshots/{c}/{timestamp}.png`), and `POST /webhooks/place`,
-a Go endpoint guarded by a shared secret. Write the task first and get approval.
+**Step 11 — Redis (stretch)** (task 011, not written yet). From Notion: Railway Redis on the
+private network only; the board as a `BITFIELD` cache with a compare-and-set Lua script and a
+single-flight rebuild; the cooldown as `SET NX EX` with `last_placed_at` as the fallback; the
+login limiter and WebSocket tickets move to Redis; the app must keep working with Redis
+stopped. It is the first stretch step and adds an always-on service (cost): confirm with the
+owner before starting.
 
 How changes reach production now: branch → pull request → CI's four checks (required by the
 `main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli predeploy`
@@ -39,6 +42,7 @@ How changes reach production now: branch → pull request → CI's four checks (
 - **`DEV_SPACE_ID`** is gone from the `api` service (the pull from Railway on 2026-10-14 lists only `APP_DB_PASSWORD`, `CORS_ORIGINS`, `DATABASE_URL`, `MIGRATE_DATABASE_URL`).
 - **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Backups:** check healthchecks.io now and then (green = last night's backup arrived). Railway's own Backups tab is Pro only. The template images are not backed up (decision in task 009). R2 still holds the laptop test dump `postgres/2026/10/15/153956-rail_canvas` (fake data); it expires on its own, or delete it
+- **The snapshot ticker lives in the API process** (Step 10). It must move to a cron service (Step 13) before a second API replica (Step 14), or each replica snapshots
 - **`ws_tickets` keeps every used ticket** (2,544 rows on 2026-10-15). Harmless; Step 13's cleanup deletes them
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
@@ -46,7 +50,7 @@ How changes reach production now: branch → pull request → CI's four checks (
 
 - `rail-canvas/.env`: `MIGRATE_DATABASE_URL` (postgres, public proxy), `APP_DB_PASSWORD`, `DATABASE_URL` (app role, public proxy, for local runs), `OWNER_PASSWORD`, plus leftover `DEV_SPACE_ID` (ignored)
 - `rail-canvas/web/.env.local`: `VITE_API_URL=http://localhost:8080`
-- Railway variable values on `api` (names are in `.railway/railway.ts`): `APP_DB_PASSWORD`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` (references), `CORS_ORIGINS`
+- Railway variable values on `api` (names are in `.railway/railway.ts`): `APP_DB_PASSWORD`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` (references), `CORS_ORIGINS`, `WEBHOOK_SECRET` (copy in Passwords, "rail-canvas webhook secret"; Step 15's Function needs it). `preserve()` keeps a value but never creates one: a new secret variable is added by hand in the dashboard
 - GitHub secret `RAILWAY_TOKEN`: Railway project token `github-iac`, `production`
 - `backup` variable values on Railway: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HC_PING_URL` (copies in the owner's Passwords app, "rail-canvas R2 backup" and "rail-canvas healthchecks")
 - Cloudflare: R2 bucket `rail-canvas-backups` (30-day lifecycle rule) and its Account API token "rail-canvas backup"; a card is on file for R2, usage stays in the free tier

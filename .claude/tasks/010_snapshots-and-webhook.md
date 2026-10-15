@@ -1,6 +1,6 @@
 # Task 010 — An hourly canvas snapshot, and one webhook
 
-**Status: approved 2026-10-15; built, shown locally, pull request open.**
+**Status: live 2026-10-16 (PR #11). The merge deploy applied `create_snapshots`; `WEBHOOK_SECRET` set by the owner (64 characters), `webhook enabled=true`. Live webhook: wrong secret 401, right secret 201 (pixel 8, blue, at 128, 128 on pixel-club's canvas). First live pass at 17:00 UTC: `canvases=1 rendered=1 failed=0 ms=946`; `2026-10-15T17Z.png`, 203 bytes, nine painted cells matching the board (the owner's red pixel beside the webhook's blue one), listed with a signed URL.**
 
 ## Local run (2026-10-15)
 
