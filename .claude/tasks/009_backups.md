@@ -1,6 +1,13 @@
 # Task 009 — Nightly backups: `pg_dump` to Cloudflare R2, a dead-man's switch, one real restore
 
-**Status: approved 2026-10-15. Spike passed; PR 1 (image, scripts, `backup` service, CI) open.**
+**Status: live 2026-10-15 (PR #8 the backup, #9 Wait for CI, #10 the runbook). First production backup `postgres/2026/10/15/160357-railway.dump` (181,101 bytes, 5 s), restored on the laptop: row counts match on all 11 tables, and `app` with `pixel-club` as the tenant sees its canvas, pixels and template (none without a tenant). healthchecks.io green from Railway's address.**
+
+## After the merge
+
+- Railway did not keep `checkSuites` or `builder: "DOCKERFILE"` when it created the service (the next plan showed both). `builder` dropped (Railway finds the Dockerfile in `rootDirectory`); `checkSuites` applied by PR #9, after which the plan is clean
+- **Watch paths work:** the deploy for PR #9 (no change under `ops/backup/`) was `SKIPPED`
+- The owner first pasted a wrong `HC_PING_URL`. The script logged no ping failure, because the wrong address still answered OK: only the check's own event list proves the right check gets the pings
+- `ws_tickets` holds 2,544 used tickets: nothing deletes them yet. Step 13's nightly cleanup
 
 ## Spike results (2026-10-15, laptop, OrbStack)
 
