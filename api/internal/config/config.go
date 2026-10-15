@@ -20,6 +20,7 @@ type Config struct {
 	CORSOrigins     []string // browser origins allowed to call the API
 	RealIPHeader    string   // set by Railway's edge; a client cannot forge it
 	Bucket          *Bucket  // nil: no bucket, the template endpoints answer 503
+	WebhookSecret   string   // empty: the webhook answers 503
 }
 
 // Bucket is the templates bucket's S3_* variables (references set in .railway/railway.ts).
@@ -29,10 +30,11 @@ type Bucket struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		Port:         getenv("PORT", "8080"),
-		Env:          getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
-		DatabaseURL:  os.Getenv("DATABASE_URL"),
-		RealIPHeader: getenv("REAL_IP_HEADER", "X-Real-IP"),
+		Port:          getenv("PORT", "8080"),
+		Env:           getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
+		DatabaseURL:   os.Getenv("DATABASE_URL"),
+		RealIPHeader:  getenv("REAL_IP_HEADER", "X-Real-IP"),
+		WebhookSecret: os.Getenv("WEBHOOK_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -53,6 +55,10 @@ func Load() (Config, error) {
 		if o = strings.TrimSpace(o); o != "" {
 			cfg.CORSOrigins = append(cfg.CORSOrigins, o)
 		}
+	}
+
+	if n := len(cfg.WebhookSecret); n > 0 && n < 32 {
+		return Config{}, fmt.Errorf("WEBHOOK_SECRET: want at least 32 characters (openssl rand -hex 32), got %d", n)
 	}
 
 	b := Bucket{

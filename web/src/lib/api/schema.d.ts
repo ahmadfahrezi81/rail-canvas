@@ -250,6 +250,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/spaces/{spaceId}/canvases/{canvasId}/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Hourly pictures of the canvas, newest first, the last 48. Taken only in an
+         *     hour the canvas changed. Each url is signed and expires at urlExpiresAt.
+         */
+        get: operations["listSnapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Place a pixel for a member, from one of our own programs (Step 15's bot),
+         *     not a browser. The caller proves itself with X-Webhook-Secret, not a bearer
+         *     token, and names the user. Same membership check and cooldown as the
+         *     browser; the pixel is recorded with source "bot".
+         */
+        post: operations["webhookPlacePixel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -414,6 +456,33 @@ export interface components {
             url: string;
             /** Format: date-time */
             urlExpiresAt: string;
+        };
+        Snapshot: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description The hour it was taken
+             */
+            takenAt: string;
+            /** @description The PNG */
+            url: string;
+            /** Format: date-time */
+            urlExpiresAt: string;
+        };
+        SnapshotList: {
+            snapshots: components["schemas"]["Snapshot"][];
+        };
+        WebhookPlacePixelRequest: {
+            /**
+             * Format: uuid
+             * @description The member placing the pixel
+             */
+            userId: string;
+            x: number;
+            y: number;
+            /** @description Index into the canvas palette */
+            color: number;
         };
         TemplateList: {
             templates: components["schemas"]["Template"][];
@@ -1176,6 +1245,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listSnapshots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Snapshots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotList"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    webhookPlacePixel: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Webhook-Secret"?: string;
+            };
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookPlacePixelRequest"];
+            };
+        };
+        responses: {
+            /** @description Placed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacedPixel"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too soon; try again at nextPlaceAt */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CooldownError"];
                 };
             };
             /** @description Error */

@@ -175,3 +175,39 @@ func TestWSTickets(t *testing.T) {
 		t.Errorf("expired: err = %v, want ErrUnauthenticated", err)
 	}
 }
+
+func TestPlaceAs(t *testing.T) {
+	space, user, canvas, svc, rec := memberWithCanvas(t, 10)
+	ctx := context.Background()
+
+	p, err := svc.PlaceAs(ctx, space, canvas, user, 3, 4, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source string
+	_ = pgx.BeginFunc(ctx, svc.pool, func(tx pgx.Tx) error {
+		_, _ = tx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", space.String())
+		return tx.QueryRow(ctx, "SELECT source FROM pixels WHERE id = $1", p.PixelID).Scan(&source)
+	})
+	if source != "bot" || rec.count() != 1 {
+		t.Errorf("source %q, %d announced; want bot, 1", source, rec.count())
+	}
+
+	if _, err := svc.PlaceAs(ctx, space, canvas, user, 3, 4, 2); !errors.As(err, new(*CooldownError)) {
+		t.Errorf("again at once: err = %v, want CooldownError", err)
+	}
+
+	stranger := newUser(t, svc.pool, "x")
+	if _, err := svc.PlaceAs(ctx, space, canvas, stranger, 0, 0, 1); !errors.Is(err, ErrNotFound) {
+		t.Errorf("not a member: err = %v, want ErrNotFound", err)
+	}
+
+	suspended := newUser(t, svc.pool, "x")
+	addMember(t, svc.pool, space, suspended, "member")
+	if _, err := svc.pool.Exec(ctx, "UPDATE users SET status = 'suspended' WHERE id = $1", suspended); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PlaceAs(ctx, space, canvas, suspended, 0, 0, 1); !errors.Is(err, ErrNotFound) {
+		t.Errorf("suspended member: err = %v, want ErrNotFound", err)
+	}
+}

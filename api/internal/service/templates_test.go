@@ -21,6 +21,7 @@ type fakeObjects struct {
 	mu      sync.Mutex
 	objects map[string]fakeObject
 	signed  []string
+	putErr  error // Put fails with it when set
 }
 
 type fakeObject struct {
@@ -66,6 +67,16 @@ func (f *fakeObjects) ReadFirst(_ context.Context, key string, n int64) ([]byte,
 	defer f.mu.Unlock()
 	d := f.objects[key].data
 	return d[:min(int64(len(d)), n)], nil
+}
+
+func (f *fakeObjects) Put(_ context.Context, key, contentType string, body []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.putErr != nil {
+		return f.putErr
+	}
+	f.objects[key] = fakeObject{append([]byte(nil), body...), contentType}
+	return nil
 }
 
 func (f *fakeObjects) Delete(_ context.Context, key string) error {

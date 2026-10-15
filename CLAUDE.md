@@ -152,6 +152,11 @@ Joining later: timeout and body size limit.
 - **`service.ObjectStore` is the bucket's interface**; `platform.Bucket` is the real one, tests use a fake. Without `S3_*` the API runs and the template endpoints answer 503.
 - **Bucket CORS** is set from `CORS_ORIGINS` by `cli bucket-cors`. Railway's buckets do not match wildcard origins, so Pages preview sites cannot upload.
 
+## Snapshots and the webhook
+
+- **Hourly snapshots run inside the API** (`Snapshots.Run`, started in `main`): at each full hour UTC, every canvas that changed becomes a PNG, one pixel per cell, at `spaces/{s}/snapshots/{c}/{hour}.png` in the templates bucket, with a `snapshots` row. One transaction per canvas reads the cells with their `pixel_id`, claims the row (`UNIQUE (canvas_id, taken_at)`: two API versions during a deploy make one), uploads, commits; a failed upload leaves no row. **Step 13 moves this to a cron service; it must be gone before a second replica.**
+- **`POST /webhooks/spaces/{s}/canvases/{c}/pixels` is for our own programs, not browsers.** `X-Webhook-Secret` is compared with `WEBHOOK_SECRET` by SHA-256 in constant time; the caller names the user, who must be an active member and waits out the cooldown (`Pixels.PlaceAs`, `source = 'bot'`). Step 15 replaces the named user with a linked bot account.
+
 ## Logging
 
 `slog` JSON to stdout, which is what Railway's log view reads. Use `slog.InfoContext(ctx, ...)` / `ErrorContext` inside a request — `middleware.ContextHandler` adds `request_id` to every line written with a request context, so it is never passed around by hand. Every line carries `service` and `env`.

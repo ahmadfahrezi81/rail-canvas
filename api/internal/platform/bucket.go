@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -82,6 +83,14 @@ func (b *Bucket) ReadFirst(ctx context.Context, key string, n int64) ([]byte, er
 	}
 	defer out.Body.Close()
 	return io.ReadAll(io.LimitReader(out.Body, n))
+}
+
+func (b *Bucket) Put(ctx context.Context, key, contentType string, body []byte) error {
+	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &b.name, Key: &key, ContentType: &contentType,
+		ContentLength: aws.Int64(int64(len(body))), Body: bytes.NewReader(body),
+	})
+	return err
 }
 
 // Delete succeeds when the object is already gone.

@@ -59,7 +59,10 @@ func run() error {
 		objects = platform.NewBucket(platform.BucketConfig(*cfg.Bucket))
 	}
 	slog.Info("templates", "enabled", objects != nil)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub), service.NewTemplates(pool, objects))
+	slog.Info("webhook", "enabled", cfg.WebhookSecret != "")
+	snapshots := service.NewSnapshots(pool, objects)
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub),
+		service.NewTemplates(pool, objects), snapshots, cfg.WebhookSecret)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -71,6 +74,7 @@ func run() error {
 	srv.RegisterOnShutdown(hub.Close) // Shutdown does not close upgraded connections itself
 
 	go logStats(ctx, hub, pool)
+	go snapshots.Run(ctx) // hourly, while the bucket is configured; moves to a cron service in Step 13
 
 	errCh := make(chan error, 1)
 	go func() {
