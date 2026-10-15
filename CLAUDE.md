@@ -203,6 +203,13 @@ Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/he
 
 ---
 
+## Backups
+
+`ops/backup/` is its own image, `FROM postgres:18` (a `pg_dump` older than the server refuses to dump it). The cron service `backup` runs `backup.sh` at 19:00 UTC: `pg_dump` as `postgres` (as `app`, RLS would empty the dump), `pg_restore --list`, row counts, upload to Cloudflare R2 with `curl --aws-sigv4`, and a healthchecks.io ping for start, success or failure. `restore.sh` brings a backup back into an empty database, creating the `app` role first. Restore, rollback and secret rotation: `docs/runbook.md`.
+
+- **A failure must reach healthchecks.io exactly once.** The scripts use `set -E` (functions inherit the ERR trap), and `on_error` reports only from the main shell (a failure inside `$(…)` would otherwise report twice)
+- **Never echo a variable in these scripts**: `DATABASE_URL` holds the `postgres` password and the ping URL is itself a secret. R2 keys reach curl on stdin, never as arguments
+
 ## Commits
 
 `type(scope): a sentence saying what changed` — e.g. `feat(api): the service answers /health and shuts down cleanly`. Scopes: `api`, `web`, `ops`, `ci`, `docs`. **No `Co-Authored-By` trailer.**
