@@ -35,7 +35,7 @@ export default defineRailway(() => {
   const backup = service("backup", {
     source: github("ahmadfahrezi81/rail-canvas", { branch: "main", checkSuites: true }),
     rootDirectory: "ops/backup",
-    build: { builder: "DOCKERFILE", watchPatterns: ["/ops/backup/**"] },
+    build: { watchPatterns: ["/ops/backup/**"] },
     deploy: { cronSchedule: "0 19 * * *", restartPolicyType: "NEVER" },
     replicas: { "asia-southeast1-eqsg3a": 1 },
     env: {
