@@ -95,3 +95,12 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Backup scripts
+        run: shellcheck -x -e SC1091 ops/backup/*.sh
+      - name: Backup image
+        uses: docker/build-push-action@v7
+        with:
+          context: ops/backup
+          push: false
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,mode=max,scope=backup
