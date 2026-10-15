@@ -27,6 +27,8 @@ export default defineRailway(() => {
       S3_SECRET_ACCESS_KEY: ref(templates, "SECRET_ACCESS_KEY"),
       S3_REGION: ref(templates, "REGION"),
       S3_ENDPOINT: ref(templates, "ENDPOINT"),
+      // Shared with our own programs that call the webhook (Step 15's bot). Set by the owner.
+      WEBHOOK_SECRET: preserve(),
     },
   });
 

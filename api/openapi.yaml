@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.3.0
+  version: 0.4.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -298,6 +298,60 @@ paths:
         "404": *error
         "503": *error
 
+  /spaces/{spaceId}/canvases/{canvasId}/snapshots:
+    get:
+      operationId: listSnapshots
+      description: |
+        Hourly pictures of the canvas, newest first, the last 48. Taken only in an
+        hour the canvas changed. Each url is signed and expires at urlExpiresAt.
+      parameters: [*spaceId, *canvasId]
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SnapshotList" }
+        "401": *error
+        "404": *error
+        "503": *error
+
+  /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels:
+    post:
+      operationId: webhookPlacePixel
+      description: |
+        Place a pixel for a member, from one of our own programs (Step 15's bot),
+        not a browser. The caller proves itself with X-Webhook-Secret, not a bearer
+        token, and names the user. Same membership check and cooldown as the
+        browser; the pixel is recorded with source "bot".
+      security: []
+      parameters:
+        - *spaceId
+        - *canvasId
+        - name: X-Webhook-Secret
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookPlacePixelRequest" }
+      responses:
+        "201":
+          description: Placed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlacedPixel" }
+        "400": *error
+        "401": *error
+        "404": *error
+        "429":
+          description: Too soon; try again at nextPlaceAt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CooldownError" }
+        "503": *error
+
 components:
   securitySchemes:
     bearer:
@@ -509,6 +563,32 @@ components:
         createdAt: { type: string, format: date-time }
         url: { type: string, description: Signed download URL }
         urlExpiresAt: { type: string, format: date-time }
+
+    Snapshot:
+      type: object
+      required: [id, takenAt, url, urlExpiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        takenAt: { type: string, format: date-time, description: The hour it was taken }
+        url: { type: string, description: The PNG, one pixel per cell }
+        urlExpiresAt: { type: string, format: date-time }
+
+    SnapshotList:
+      type: object
+      required: [snapshots]
+      properties:
+        snapshots:
+          type: array
+          items: { $ref: "#/components/schemas/Snapshot" }
+
+    WebhookPlacePixelRequest:
+      type: object
+      required: [userId, x, y, color]
+      properties:
+        userId: { type: string, format: uuid, description: The member placing the pixel }
+        x: { type: integer }
+        y: { type: integer }
+        color: { type: integer, description: Index into the canvas palette }
 
     TemplateList:
       type: object

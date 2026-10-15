@@ -207,6 +207,23 @@ type SignupRequest struct {
 	Password    string `json:"password"`
 }
 
+// Snapshot defines model for Snapshot.
+type Snapshot struct {
+	Id openapi_types.UUID `json:"id"`
+
+	// TakenAt The hour it was taken
+	TakenAt time.Time `json:"takenAt"`
+
+	// Url The PNG
+	Url          string    `json:"url"`
+	UrlExpiresAt time.Time `json:"urlExpiresAt"`
+}
+
+// SnapshotList defines model for SnapshotList.
+type SnapshotList struct {
+	Snapshots []Snapshot `json:"snapshots"`
+}
+
 // SpaceMembership defines model for SpaceMembership.
 type SpaceMembership struct {
 	Id   openapi_types.UUID  `json:"id"`
@@ -289,6 +306,22 @@ type WSTicket struct {
 	Ticket    string    `json:"ticket"`
 }
 
+// WebhookPlacePixelRequest defines model for WebhookPlacePixelRequest.
+type WebhookPlacePixelRequest struct {
+	// Color Index into the canvas palette
+	Color int `json:"color"`
+
+	// UserId The member placing the pixel
+	UserId openapi_types.UUID `json:"userId"`
+	X      int                `json:"x"`
+	Y      int                `json:"y"`
+}
+
+// WebhookPlacePixelParams defines parameters for WebhookPlacePixel.
+type WebhookPlacePixelParams struct {
+	XWebhookSecret *string `json:"X-Webhook-Secret,omitempty"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -306,6 +339,9 @@ type PlacePixelJSONRequestBody = PlacePixelRequest
 
 // CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
 type CreateTemplateJSONRequestBody = CreateTemplateRequest
+
+// WebhookPlacePixelJSONRequestBody defines body for WebhookPlacePixel for application/json ContentType.
+type WebhookPlacePixelJSONRequestBody = WebhookPlacePixelRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -340,6 +376,9 @@ type ServerInterface interface {
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
 
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/snapshots)
+	ListSnapshots(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
 	ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
 
@@ -354,6 +393,9 @@ type ServerInterface interface {
 
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
+
+	// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
+	WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams)
 
 	// (POST /ws/ticket)
 	CreateWSTicket(w http.ResponseWriter, r *http.Request)
@@ -413,6 +455,11 @@ func (_ Unimplemented) PlacePixel(w http.ResponseWriter, r *http.Request, spaceI
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /spaces/{spaceId}/canvases/{canvasId}/snapshots)
+func (_ Unimplemented) ListSnapshots(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
 func (_ Unimplemented) ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -435,6 +482,11 @@ func (_ Unimplemented) CompleteTemplate(w http.ResponseWriter, r *http.Request, 
 
 // (POST /spaces/{spaceId}/invites)
 func (_ Unimplemented) CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
+func (_ Unimplemented) WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -658,6 +710,41 @@ func (siw *ServerInterfaceWrapper) PlacePixel(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// ListSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) ListSnapshots(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSnapshots(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTemplates operation middleware
 func (siw *ServerInterfaceWrapper) ListTemplates(w http.ResponseWriter, r *http.Request) {
 
@@ -842,6 +929,65 @@ func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// WebhookPlacePixel operation middleware
+func (siw *ServerInterfaceWrapper) WebhookPlacePixel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WebhookPlacePixelParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Webhook-Secret" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Webhook-Secret")]; found {
+		var XWebhookSecret string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Webhook-Secret", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Webhook-Secret", valueList[0], &XWebhookSecret, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Webhook-Secret", Err: err})
+			return
+		}
+
+		params.XWebhookSecret = &XWebhookSecret
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WebhookPlacePixel(w, r, spaceId, canvasId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateWSTicket operation middleware
 func (siw *ServerInterfaceWrapper) CreateWSTicket(w http.ResponseWriter, r *http.Request) {
 
@@ -1016,6 +1162,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}", wrapper.DeleteTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/snapshots", wrapper.ListSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels", wrapper.WebhookPlacePixel)
 	})
 
 	return r
@@ -1550,6 +1702,71 @@ func (response PlacePixel429JSONResponse) VisitPlacePixelResponse(w http.Respons
 	return err
 }
 
+type ListSnapshotsRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+}
+
+type ListSnapshotsResponseObject interface {
+	VisitListSnapshotsResponse(w http.ResponseWriter) error
+}
+
+type ListSnapshots200JSONResponse SnapshotList
+
+func (response ListSnapshots200JSONResponse) VisitListSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSnapshots401JSONResponse Error
+
+func (response ListSnapshots401JSONResponse) VisitListSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSnapshots404JSONResponse Error
+
+func (response ListSnapshots404JSONResponse) VisitListSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSnapshots503JSONResponse Error
+
+func (response ListSnapshots503JSONResponse) VisitListSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListTemplatesRequestObject struct {
 	SpaceId  openapi_types.UUID `json:"spaceId"`
 	CanvasId openapi_types.UUID `json:"canvasId"`
@@ -1955,6 +2172,101 @@ func (response CreateInvite404JSONResponse) VisitCreateInviteResponse(w http.Res
 	return err
 }
 
+type WebhookPlacePixelRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+	Params   WebhookPlacePixelParams
+	Body     *WebhookPlacePixelJSONRequestBody
+}
+
+type WebhookPlacePixelResponseObject interface {
+	VisitWebhookPlacePixelResponse(w http.ResponseWriter) error
+}
+
+type WebhookPlacePixel201JSONResponse PlacedPixel
+
+func (response WebhookPlacePixel201JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookPlacePixel400JSONResponse Error
+
+func (response WebhookPlacePixel400JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookPlacePixel401JSONResponse Error
+
+func (response WebhookPlacePixel401JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookPlacePixel404JSONResponse Error
+
+func (response WebhookPlacePixel404JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookPlacePixel429JSONResponse CooldownError
+
+func (response WebhookPlacePixel429JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookPlacePixel503JSONResponse Error
+
+func (response WebhookPlacePixel503JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateWSTicketRequestObject struct {
 }
 
@@ -2023,6 +2335,9 @@ type StrictServerInterface interface {
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(ctx context.Context, request PlacePixelRequestObject) (PlacePixelResponseObject, error)
 
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/snapshots)
+	ListSnapshots(ctx context.Context, request ListSnapshotsRequestObject) (ListSnapshotsResponseObject, error)
+
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/templates)
 	ListTemplates(ctx context.Context, request ListTemplatesRequestObject) (ListTemplatesResponseObject, error)
 
@@ -2037,6 +2352,9 @@ type StrictServerInterface interface {
 
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
+
+	// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
+	WebhookPlacePixel(ctx context.Context, request WebhookPlacePixelRequestObject) (WebhookPlacePixelResponseObject, error)
 
 	// (POST /ws/ticket)
 	CreateWSTicket(ctx context.Context, request CreateWSTicketRequestObject) (CreateWSTicketResponseObject, error)
@@ -2366,6 +2684,33 @@ func (sh *strictHandler) PlacePixel(w http.ResponseWriter, r *http.Request, spac
 	}
 }
 
+// ListSnapshots operation middleware
+func (sh *strictHandler) ListSnapshots(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request ListSnapshotsRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSnapshots(ctx, request.(ListSnapshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSnapshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSnapshotsResponseObject); ok {
+		if err := validResponse.VisitListSnapshotsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListTemplates operation middleware
 func (sh *strictHandler) ListTemplates(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	var request ListTemplatesRequestObject
@@ -2502,6 +2847,41 @@ func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, sp
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateInviteResponseObject); ok {
 		if err := validResponse.VisitCreateInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WebhookPlacePixel operation middleware
+func (sh *strictHandler) WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams) {
+	var request WebhookPlacePixelRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+	request.Params = params
+
+	var body WebhookPlacePixelJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WebhookPlacePixel(ctx, request.(WebhookPlacePixelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WebhookPlacePixel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WebhookPlacePixelResponseObject); ok {
+		if err := validResponse.VisitWebhookPlacePixelResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

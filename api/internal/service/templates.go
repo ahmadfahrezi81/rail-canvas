@@ -47,6 +47,8 @@ type ObjectStore interface {
 	// ReadFirst reads at most n bytes from the start of the object.
 	ReadFirst(ctx context.Context, key string, n int64) ([]byte, error)
 	Delete(ctx context.Context, key string) error
+	// Put stores a small file the server made itself (snapshots). Browsers upload through SignUpload.
+	Put(ctx context.Context, key, contentType string, body []byte) error
 }
 
 type Template struct {

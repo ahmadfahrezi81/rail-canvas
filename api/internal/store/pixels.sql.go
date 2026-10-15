@@ -86,6 +86,18 @@ func (q *Queries) InsertPixel(ctx context.Context, arg InsertPixelParams) (Inser
 	return i, err
 }
 
+const isActiveUser = `-- name: IsActiveUser :one
+SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND status = 'active')
+`
+
+// The webhook has no session, whose check would refuse a suspended user.
+func (q *Queries) IsActiveUser(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isActiveUser, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const upsertCanvasPixel = `-- name: UpsertCanvasPixel :exec
 INSERT INTO canvas_pixels (canvas_id, x, y, space_id, color, pixel_id)
 VALUES ($1, $2, $3, $4, $5, $6)

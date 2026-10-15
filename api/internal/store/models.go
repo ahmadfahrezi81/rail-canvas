@@ -63,6 +63,15 @@ type Session struct {
 	RevokedAt *time.Time
 }
 
+type Snapshot struct {
+	ID          uuid.UUID
+	SpaceID     uuid.UUID
+	CanvasID    uuid.UUID
+	ObjectKey   string
+	LastPixelID int64
+	TakenAt     time.Time
+}
+
 type Space struct {
 	ID        uuid.UUID
 	Name      string

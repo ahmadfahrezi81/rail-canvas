@@ -43,6 +43,19 @@ func NewPixels(pool *pgxpool.Pool, pub Publisher) *Pixels {
 	return &Pixels{pool: pool, pub: pub}
 }
 
+// PlaceAs places for a user named by a trusted caller (the webhook). There is no session,
+// whose check refuses a suspended user, so it is checked here; a suspended user reads as not found.
+func (s *Pixels) PlaceAs(ctx context.Context, spaceID, canvasID, userID uuid.UUID, x, y, color int) (Placed, error) {
+	active, err := store.New(s.pool).IsActiveUser(ctx, userID)
+	if err != nil {
+		return Placed{}, err
+	}
+	if !active {
+		return Placed{}, ErrNotFound
+	}
+	return s.Place(ctx, spaceID, canvasID, userID, x, y, color, "bot")
+}
+
 // Place claims the cooldown, writes history and board in one transaction, and
 // announces the pixel only after the commit.
 func (s *Pixels) Place(ctx context.Context, spaceID, canvasID, userID uuid.UUID, x, y, color int, source string) (Placed, error) {

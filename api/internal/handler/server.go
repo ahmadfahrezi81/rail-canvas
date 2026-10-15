@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"time"
 
@@ -22,6 +23,9 @@ type Server struct {
 	canvases  *service.Canvases
 	pixels    *service.Pixels
 	templates *service.Templates
+	snapshots *service.Snapshots
+	// SHA-256 of WEBHOOK_SECRET; nil: the webhook is off.
+	webhookSecret *[sha256.Size]byte
 
 	loginLimit   *ratelimit.Limiter // per email + IP: guessing one account's password
 	loginIPLimit *ratelimit.Limiter // per IP: trying many accounts
@@ -33,9 +37,16 @@ type Server struct {
 
 var _ apigen.StrictServerInterface = (*Server)(nil)
 
-func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases, pixels *service.Pixels, templates *service.Templates) *Server {
+func NewServer(env string, auth *service.Auth, spaces *service.Spaces, canvases *service.Canvases, pixels *service.Pixels,
+	templates *service.Templates, snapshots *service.Snapshots, webhookSecret string) *Server {
+	var secret *[sha256.Size]byte
+	if webhookSecret != "" {
+		h := sha256.Sum256([]byte(webhookSecret))
+		secret = &h
+	}
 	return &Server{
 		env: env, auth: auth, spaces: spaces, canvases: canvases, pixels: pixels, templates: templates,
+		snapshots: snapshots, webhookSecret: secret,
 		// 5 attempts at once, then one every 12 seconds.
 		loginLimit:    ratelimit.New(12*time.Second, 5),
 		loginIPLimit:  ratelimit.New(3*time.Second, 20),

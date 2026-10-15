@@ -18,3 +18,7 @@ RETURNING id, placed_at;
 INSERT INTO canvas_pixels (canvas_id, x, y, space_id, color, pixel_id)
 VALUES (sqlc.arg(canvas_id), sqlc.arg(x), sqlc.arg(y), sqlc.arg(space_id), sqlc.arg(color), sqlc.arg(pixel_id))
 ON CONFLICT (canvas_id, x, y) DO UPDATE SET color = EXCLUDED.color, pixel_id = EXCLUDED.pixel_id;
+
+-- name: IsActiveUser :one
+-- The webhook has no session, whose check would refuse a suspended user.
+SELECT EXISTS (SELECT 1 FROM users WHERE id = sqlc.arg(id) AND status = 'active');
