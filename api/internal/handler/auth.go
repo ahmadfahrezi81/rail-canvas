@@ -31,7 +31,7 @@ func (s *Server) Login(ctx context.Context, req apigen.LoginRequestObject) (apig
 }
 
 func (s *Server) Signup(ctx context.Context, req apigen.SignupRequestObject) (apigen.SignupResponseObject, error) {
-	if !s.signupLimit.Allow("signup:" + middleware.ClientIP(ctx)) {
+	if !s.signupLimit.Allow(middleware.ClientIP(ctx)) {
 		return apigen.Signup429JSONResponse(errTooMany), nil
 	}
 	b := req.Body
@@ -91,7 +91,7 @@ func (s *Server) JoinSpace(ctx context.Context, req apigen.JoinSpaceRequestObjec
 	if !ok {
 		return apigen.JoinSpace401JSONResponse(errUnauthorized), nil
 	}
-	if !s.joinLimit.Allow("join:" + middleware.ClientIP(ctx)) {
+	if !s.joinLimit.Allow(middleware.ClientIP(ctx)) {
 		return apigen.JoinSpace429JSONResponse(errTooMany), nil
 	}
 	spaceID, err := s.auth.Join(ctx, user.ID, req.Body.Code)

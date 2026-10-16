@@ -44,11 +44,19 @@ type User struct {
 }
 
 type Auth struct {
-	pool *pgxpool.Pool
+	pool  *pgxpool.Pool
+	redis *Redis // nil: WebSocket tickets live in ws_tickets
 }
 
 func NewAuth(pool *pgxpool.Pool) *Auth {
 	return &Auth{pool: pool}
+}
+
+// WithRedis keeps WebSocket tickets in Redis, where they expire by themselves.
+// ws_tickets stays the fallback.
+func (a *Auth) WithRedis(r *Redis) *Auth {
+	a.redis = r
+	return a
 }
 
 // Login returns a new session token. Unknown email and wrong password are indistinguishable.
@@ -174,6 +182,13 @@ func (a *Auth) CreateWSTicket(ctx context.Context, userID uuid.UUID) (string, ti
 	_, _ = rand.Read(b)
 	ticket := base64.RawURLEncoding.EncodeToString(b)
 	expires := time.Now().Add(wsTicketTTL)
+	if a.redis != nil && a.redis.Up() {
+		err := a.redis.c.Set(ctx, ticketKey(hashSecret(ticket)), userID.String(), wsTicketTTL).Err()
+		if err == nil {
+			return ticket, expires, nil
+		}
+		a.redis.Failed("ticket create", err)
+	}
 	err := store.New(a.pool).CreateWSTicket(ctx, store.CreateWSTicketParams{
 		TicketHash: hashSecret(ticket), UserID: userID, ExpiresAt: expires,
 	})
@@ -184,6 +199,17 @@ func (a *Auth) CreateWSTicket(ctx context.Context, userID uuid.UUID) (string, ti
 func (a *Auth) RedeemTicket(ctx context.Context, ticket string) (uuid.UUID, error) {
 	if ticket == "" {
 		return uuid.Nil, ErrUnauthenticated
+	}
+	if a.redis != nil && a.redis.Up() {
+		// GETDEL reads and deletes in one step: a ticket works once, even under a race.
+		id, err := a.redis.c.GetDel(ctx, ticketKey(hashSecret(ticket))).Result()
+		switch {
+		case err == nil:
+			return a.activeUser(ctx, id)
+		case !isMiss(err):
+			a.redis.Failed("ticket redeem", err)
+		}
+		// Not in Redis: it may have been made in Postgres while Redis was down.
 	}
 	row, err := store.New(a.pool).RedeemWSTicket(ctx, hashSecret(ticket))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -268,4 +294,20 @@ func isUniqueViolation(err error) bool {
 
 func toUser(row store.User) User {
 	return User{ID: row.ID, Email: row.Email, DisplayName: row.DisplayName}
+}
+
+// activeUser: a ticket from Redis still needs the user active, as the Postgres redeem checks.
+func (a *Auth) activeUser(ctx context.Context, id string) (uuid.UUID, error) {
+	userID, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.Nil, ErrUnauthenticated
+	}
+	active, err := store.New(a.pool).IsActiveUser(ctx, userID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !active {
+		return uuid.Nil, ErrUnauthenticated
+	}
+	return userID, nil
 }

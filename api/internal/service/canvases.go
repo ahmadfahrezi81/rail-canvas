@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/store"
 )
@@ -22,11 +24,20 @@ type Canvas struct {
 }
 
 type Canvases struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	redis  *Redis // nil: the board is read from Postgres every time
+	flight singleflight.Group
+	scans  atomic.Int64 // board rebuilds from Postgres, for tests
 }
 
 func NewCanvases(pool *pgxpool.Pool) *Canvases {
 	return &Canvases{pool: pool}
+}
+
+// WithRedis caches boards in Redis. Postgres stays the source of truth.
+func (s *Canvases) WithRedis(r *Redis) *Canvases {
+	s.redis = r
+	return s
 }
 
 // DefaultCooldown matches the column default; a personal project with a small group.
@@ -69,8 +80,14 @@ func (s *Canvases) List(ctx context.Context, spaceID uuid.UUID) ([]Canvas, error
 	return out, err
 }
 
-// Board returns one byte per cell, row by row. Live; Redis caches it from Step 11.
+// Board returns one byte per cell, row by row: from Redis when it has it (see cachedBoard),
+// otherwise live from Postgres.
 func (s *Canvases) Board(ctx context.Context, spaceID, canvasID uuid.UUID) ([]byte, error) {
+	if s.redis != nil {
+		if board, ok, err := s.cachedBoard(ctx, spaceID, canvasID); ok {
+			return board, err
+		}
+	}
 	var board []byte
 	err := inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
 		c, err := q.GetCanvas(ctx, store.GetCanvasParams{ID: canvasID, SpaceID: spaceID})
