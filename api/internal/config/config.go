@@ -21,6 +21,7 @@ type Config struct {
 	RealIPHeader    string   // set by Railway's edge; a client cannot forge it
 	Bucket          *Bucket  // nil: no bucket, the template endpoints answer 503
 	WebhookSecret   string   // empty: the webhook answers 503
+	RedisURL        string   // empty: no Redis; everything runs on Postgres and memory, as before Step 11
 }
 
 // Bucket is the templates bucket's S3_* variables (references set in .railway/railway.ts).
@@ -35,6 +36,7 @@ func Load() (Config, error) {
 		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		RealIPHeader:  getenv("REAL_IP_HEADER", "X-Real-IP"),
 		WebhookSecret: os.Getenv("WEBHOOK_SECRET"),
+		RedisURL:      os.Getenv("REDIS_URL"),
 	}
 
 	if cfg.DatabaseURL == "" {

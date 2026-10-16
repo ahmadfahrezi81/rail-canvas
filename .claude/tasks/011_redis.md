@@ -1,6 +1,21 @@
 # Task 011 — Redis: a board cache, the cooldown, limits and tickets, and still working without it
 
-**Status: approved 2026-10-17, after a sanity check (cooldown per canvas, rebuild writes `ver`).**
+**Status: approved 2026-10-17, after a sanity check (cooldown per canvas, rebuild writes `ver`). PR #13 (Redis) merged: Redis 8.2, `redis.railway.internal`, no TCP proxy (the template adds its own volume). PR 2 open.**
+
+## What changed while building
+
+- **A circuit breaker** (`Redis.Up`, 5 seconds). The first tests with Redis down took 0.5–1.7 s *per call*: the client retried a dead Redis, and one request makes several calls. Now a failure makes the API skip Redis for 5 seconds, client retries are off (`MaxRetries: -1`), and the "Redis down" test went from 4.6 s to 0.6 s
+- **Stale boards after an outage:** a placement made while Redis is skipped cannot update the cached board, so the board key is remembered as stale and deleted before its next read (or at the next stats ping). Tested
+- **The cooldown check runs right after the canvas lookup**, inside the transaction, because it needs the canvas's cooldown. A too-soon click still never reaches the Postgres claim or any write; it does read the canvas row
+
+## Local run (2026-10-17)
+
+API on the laptop, Postgres 18 and Redis 8.2 in OrbStack:
+
+- Redis up: cold board read 12 ms (rebuild), warm 3 ms; a webhook pixel appears in the cached board; a WebSocket ticket goes to Redis (0 rows in `ws_tickets`)
+- Redis frozen (`docker pause`, so every call hangs to its timeout): placing works (201), the board is read from Postgres and shows the new pixel, a ticket goes to Postgres (1 row), the cooldown comes from Postgres (201, then 429). One warning line in the log, `redis unavailable, using fallbacks`
+- Redis back: the board read shows the pixels placed during the outage (the stale board was dropped and rebuilt)
+- Stats line: `redis_ok=true redis_errors=1 board_hits=2 board_misses=2`
 
 Plan: [Rail Canvas, Step 11](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9) and its
 "Data model" (Redis keys, "A placement, in order"), "Security and tenancy" (Rate limits) and

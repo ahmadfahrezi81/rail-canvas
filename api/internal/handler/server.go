@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/middleware"
@@ -61,6 +62,15 @@ var (
 	errNotFound     = apigen.Error{Error: "not found"}
 	errTooMany      = apigen.Error{Error: "too many attempts, try again in a minute"}
 )
+
+// ShareLimits moves every rate limit to Redis, so all API copies count together.
+func (s *Server) ShareLimits(rdb *redis.Client, onErr func(op string, err error), up func() bool) {
+	s.loginLimit.Share(rdb, "login", onErr, up)
+	s.loginIPLimit.Share(rdb, "login-ip", onErr, up)
+	s.signupLimit.Share(rdb, "signup", onErr, up)
+	s.joinLimit.Share(rdb, "join", onErr, up)
+	s.templateLimit.Share(rdb, "template", onErr, up)
+}
 
 // GetHealth stays dependency-free: a DB blip must not get a healthy API restarted.
 func (s *Server) GetHealth(ctx context.Context, _ apigen.GetHealthRequestObject) (apigen.GetHealthResponseObject, error) {

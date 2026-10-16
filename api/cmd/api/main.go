@@ -51,8 +51,19 @@ func run() error {
 	}
 	defer pool.Close()
 
-	auth := service.NewAuth(pool)
-	canvases := service.NewCanvases(pool)
+	var rdb *service.Redis
+	if cfg.RedisURL != "" {
+		client, err := platform.NewRedis(cfg.RedisURL)
+		if err != nil {
+			return err
+		}
+		defer client.Close()
+		rdb = service.NewRedis(client)
+	}
+	slog.Info("redis", "enabled", rdb != nil)
+
+	auth := service.NewAuth(pool).WithRedis(rdb)
+	canvases := service.NewCanvases(pool).WithRedis(rdb)
 	hub := realtime.NewHub(auth, canvases, cfg.CORSOrigins)
 	var objects service.ObjectStore
 	if cfg.Bucket != nil {
@@ -61,8 +72,11 @@ func run() error {
 	slog.Info("templates", "enabled", objects != nil)
 	slog.Info("webhook", "enabled", cfg.WebhookSecret != "")
 	snapshots := service.NewSnapshots(pool, objects)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub),
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub).WithRedis(rdb),
 		service.NewTemplates(pool, objects), snapshots, cfg.WebhookSecret)
+	if rdb != nil {
+		server.ShareLimits(rdb.Client(), rdb.Failed, rdb.Up)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -73,7 +87,7 @@ func run() error {
 	}
 	srv.RegisterOnShutdown(hub.Close) // Shutdown does not close upgraded connections itself
 
-	go logStats(ctx, hub, pool)
+	go logStats(ctx, hub, pool, rdb)
 	go snapshots.Run(ctx) // hourly, while the bucket is configured; moves to a cron service in Step 13
 
 	errCh := make(chan error, 1)
@@ -137,7 +151,7 @@ func routes(cfg config.Config, server *handler.Server, auth middleware.Authentic
 }
 
 // logStats writes the numbers later steps and the load test are read against.
-func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool) {
+func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool, rdb *service.Redis) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -146,7 +160,12 @@ func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool) {
 			return
 		case <-t.C:
 			ws, db := hub.Stats(), pool.Stat()
-			slog.Info("stats",
+			attrs := []any{}
+			if rdb != nil {
+				r := rdb.Stats(ctx)
+				attrs = append(attrs, "redis_ok", r.OK, "redis_errors", r.Errors, "board_hits", r.BoardHits, "board_misses", r.BoardMisses)
+			}
+			slog.Info("stats", append([]any{
 				"ws_clients", ws.Clients,
 				"ws_subscriptions", ws.Subscriptions,
 				"ws_dropped_slow", ws.DroppedSlow,
@@ -154,7 +173,7 @@ func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool) {
 				"db_idle", db.IdleConns(),
 				"db_max", db.MaxConns(),
 				"db_waited_total", db.EmptyAcquireCount(), // acquires that had to wait for a free connection
-			)
+			}, attrs...)...)
 		}
 	}
 }
