@@ -50,6 +50,27 @@ func (e SpaceMembershipRole) Valid() bool {
 	}
 }
 
+// Defines values for TimelapseStatus.
+const (
+	Failed  TimelapseStatus = "failed"
+	Pending TimelapseStatus = "pending"
+	Ready   TimelapseStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the TimelapseStatus enum.
+func (e TimelapseStatus) Valid() bool {
+	switch e {
+	case Failed:
+		return true
+	case Pending:
+		return true
+	case Ready:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WSClientMessageType.
 const (
 	Subscribe   WSClientMessageType = "subscribe"
@@ -237,9 +258,12 @@ type SpaceMembershipRole string
 
 // Template defines model for Template.
 type Template struct {
-	CreatedAt  time.Time          `json:"createdAt"`
-	Height     int                `json:"height"`
-	Id         openapi_types.UUID `json:"id"`
+	CreatedAt time.Time          `json:"createdAt"`
+	Height    int                `json:"height"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// ThumbUrl Signed URL of a copy at most 64 × 64, made by the worker. Absent until it exists; show url meanwhile
+	ThumbUrl   *string `json:"thumbUrl,omitempty"`
 	UploadedBy struct {
 		// Id Absent if the account is gone
 		Id   *openapi_types.UUID `json:"id,omitempty"`
@@ -267,6 +291,32 @@ type TemplateUpload struct {
 	// UploadHeaders Headers the PUT must send exactly.
 	UploadHeaders map[string]string `json:"uploadHeaders"`
 	UploadUrl     string            `json:"uploadUrl"`
+}
+
+// Timelapse defines model for Timelapse.
+type Timelapse struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Error Why it failed; when failed
+	Error      *string    `json:"error,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Frames One per hourly snapshot; when ready
+	Frames *int               `json:"frames,omitempty"`
+	Id     openapi_types.UUID `json:"id"`
+	Status TimelapseStatus    `json:"status"`
+
+	// Url Signed URL of the animated GIF; when ready
+	Url          *string    `json:"url,omitempty"`
+	UrlExpiresAt *time.Time `json:"urlExpiresAt,omitempty"`
+}
+
+// TimelapseStatus defines model for Timelapse.Status.
+type TimelapseStatus string
+
+// TimelapseList defines model for TimelapseList.
+type TimelapseList struct {
+	Timelapses []Timelapse `json:"timelapses"`
 }
 
 // User defines model for User.
@@ -391,6 +441,12 @@ type ServerInterface interface {
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
 	CompleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID)
 
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+	ListTimelapses(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+	CreateTimelapse(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
 
@@ -477,6 +533,16 @@ func (_ Unimplemented) DeleteTemplate(w http.ResponseWriter, r *http.Request, sp
 
 // (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
 func (_ Unimplemented) CompleteTemplate(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, templateId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+func (_ Unimplemented) ListTimelapses(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+func (_ Unimplemented) CreateTimelapse(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -903,6 +969,76 @@ func (siw *ServerInterfaceWrapper) CompleteTemplate(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// ListTimelapses operation middleware
+func (siw *ServerInterfaceWrapper) ListTimelapses(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTimelapses(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTimelapse operation middleware
+func (siw *ServerInterfaceWrapper) CreateTimelapse(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTimelapse(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateInvite operation middleware
 func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
@@ -1165,6 +1301,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/snapshots", wrapper.ListSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/timelapses", wrapper.ListTimelapses)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/timelapses", wrapper.CreateTimelapse)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels", wrapper.WebhookPlacePixel)
@@ -2108,6 +2250,164 @@ func (response CompleteTemplate503JSONResponse) VisitCompleteTemplateResponse(w 
 	return err
 }
 
+type ListTimelapsesRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+}
+
+type ListTimelapsesResponseObject interface {
+	VisitListTimelapsesResponse(w http.ResponseWriter) error
+}
+
+type ListTimelapses200JSONResponse TimelapseList
+
+func (response ListTimelapses200JSONResponse) VisitListTimelapsesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTimelapses401JSONResponse Error
+
+func (response ListTimelapses401JSONResponse) VisitListTimelapsesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTimelapses404JSONResponse Error
+
+func (response ListTimelapses404JSONResponse) VisitListTimelapsesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTimelapses503JSONResponse Error
+
+func (response ListTimelapses503JSONResponse) VisitListTimelapsesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapseRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+}
+
+type CreateTimelapseResponseObject interface {
+	VisitCreateTimelapseResponse(w http.ResponseWriter) error
+}
+
+type CreateTimelapse202JSONResponse Timelapse
+
+func (response CreateTimelapse202JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapse401JSONResponse Error
+
+func (response CreateTimelapse401JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapse404JSONResponse Error
+
+func (response CreateTimelapse404JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapse409JSONResponse Error
+
+func (response CreateTimelapse409JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapse429JSONResponse Error
+
+func (response CreateTimelapse429JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTimelapse503JSONResponse Error
+
+func (response CreateTimelapse503JSONResponse) VisitCreateTimelapseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateInviteRequestObject struct {
 	SpaceId openapi_types.UUID `json:"spaceId"`
 }
@@ -2349,6 +2649,12 @@ type StrictServerInterface interface {
 
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/templates/{templateId}/complete)
 	CompleteTemplate(ctx context.Context, request CompleteTemplateRequestObject) (CompleteTemplateResponseObject, error)
+
+	// (GET /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+	ListTimelapses(ctx context.Context, request ListTimelapsesRequestObject) (ListTimelapsesResponseObject, error)
+
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/timelapses)
+	CreateTimelapse(ctx context.Context, request CreateTimelapseRequestObject) (CreateTimelapseResponseObject, error)
 
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
@@ -2821,6 +3127,60 @@ func (sh *strictHandler) CompleteTemplate(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CompleteTemplateResponseObject); ok {
 		if err := validResponse.VisitCompleteTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTimelapses operation middleware
+func (sh *strictHandler) ListTimelapses(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request ListTimelapsesRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTimelapses(ctx, request.(ListTimelapsesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTimelapses")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTimelapsesResponseObject); ok {
+		if err := validResponse.VisitListTimelapsesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTimelapse operation middleware
+func (sh *strictHandler) CreateTimelapse(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request CreateTimelapseRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTimelapse(ctx, request.(CreateTimelapseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTimelapse")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTimelapseResponseObject); ok {
+		if err := validResponse.VisitCreateTimelapseResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -50,7 +50,7 @@ export function Templates({ templates, shown, onToggle, opacity, onOpacity, onUp
             {templates.map((t) => (
               <li key={t.id}>
                 <input type="checkbox" checked={shown.has(t.id)} onChange={() => onToggle(t.id)} aria-label="Show" />
-                <img src={t.url} alt="" />
+                <img src={t.thumbUrl ?? t.url} alt="" />
                 <span className="grow">
                   {t.width} × {t.height} at {t.x}, {t.y} <span className="muted">· {t.uploadedBy.name}</span>
                 </span>

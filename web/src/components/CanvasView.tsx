@@ -3,9 +3,11 @@ import { CooldownError, type Canvas } from "../lib/api/client";
 import { useLiveCanvas } from "../lib/hooks/useLiveCanvas";
 import { usePlacePixel } from "../lib/hooks/usePlacePixel";
 import { useTemplates } from "../lib/hooks/useTemplates";
+import { useTimelapses } from "../lib/hooks/useTimelapses";
 import { Board, type BoardHandle } from "./Board";
 import { Palette } from "./Palette";
 import { Templates } from "./Templates";
+import { Timelapses } from "./Timelapses";
 
 export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canvas }) {
   const boardRef = useRef<BoardHandle>(null);
@@ -17,6 +19,7 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
   const [hover, setHover] = useState<{ x: number; y: number }>();
   const [error, setError] = useState<string>();
   const { templates, unavailable, upload, remove } = useTemplates(spaceId, canvas.id);
+  const lapses = useTimelapses(spaceId, canvas.id);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const [opacity, setOpacity] = useState(0.5);
   const overlays = (templates ?? []).filter((t) => shown.has(t.id));
@@ -83,6 +86,9 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
           }}
           onRemove={remove}
         />
+      )}
+      {lapses.timelapses && !lapses.unavailable && (
+        <Timelapses timelapses={lapses.timelapses} onCreate={lapses.create} />
       )}
     </>
   );

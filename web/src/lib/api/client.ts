@@ -8,6 +8,7 @@ export type Membership = components["schemas"]["SpaceMembership"];
 export type Me = components["schemas"]["Me"];
 export type PlacedPixel = components["schemas"]["PlacedPixel"];
 export type Template = components["schemas"]["Template"];
+export type Timelapse = components["schemas"]["Timelapse"];
 export type WSClientMessage = components["schemas"]["WSClientMessage"];
 export type WSServerMessage = components["schemas"]["WSServerMessage"];
 
@@ -169,5 +170,24 @@ export const templatesApi = {
       params: { path: { spaceId, canvasId, templateId } },
     });
     if (error) fail(response, error);
+  },
+};
+
+export const timelapsesApi = {
+  // The canvas's 10 newest; a ready one's url is signed and expires at urlExpiresAt.
+  async list(spaceId: string, canvasId: string): Promise<Timelapse[]> {
+    const { data, error, response } = await client.GET("/spaces/{spaceId}/canvases/{canvasId}/timelapses", {
+      params: { path: { spaceId, canvasId } },
+    });
+    if (error) fail(response, error);
+    return data.timelapses;
+  },
+  // Queued for the worker; poll list until it is ready.
+  async create(spaceId: string, canvasId: string): Promise<Timelapse> {
+    const { data, error, response } = await client.POST("/spaces/{spaceId}/canvases/{canvasId}/timelapses", {
+      params: { path: { spaceId, canvasId } },
+    });
+    if (error) fail(response, error);
+    return data;
   },
 };

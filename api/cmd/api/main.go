@@ -18,6 +18,7 @@ import (
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/config"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/handler"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/httpx"
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/jobs"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/middleware"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/platform"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/realtime"
@@ -45,7 +46,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := platform.NewPostgres(ctx, cfg.DatabaseURL)
+	pool, err := platform.NewPostgres(ctx, cfg.DatabaseURL, platform.MaxConns)
 	if err != nil {
 		return err
 	}
@@ -71,9 +72,14 @@ func run() error {
 	}
 	slog.Info("templates", "enabled", objects != nil)
 	slog.Info("webhook", "enabled", cfg.WebhookSecret != "")
-	snapshots := service.NewSnapshots(pool, objects)
+	// The worker's queue lives in Redis. A plain nil interface when there is none, never a nil *jobs.Client.
+	var queue service.Queue
+	if rdb != nil {
+		queue = jobs.NewClient(rdb.Client(), rdb.Up, rdb.Failed)
+	}
+	snapshots := service.NewSnapshots(pool, objects).WithQueue(queue)
 	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub).WithRedis(rdb),
-		service.NewTemplates(pool, objects), snapshots, cfg.WebhookSecret)
+		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue), cfg.WebhookSecret)
 	if rdb != nil {
 		server.ShareLimits(rdb.Client(), rdb.Failed, rdb.Up)
 	}
@@ -164,6 +170,11 @@ func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool, rdb *s
 			if rdb != nil {
 				r := rdb.Stats(ctx)
 				attrs = append(attrs, "redis_ok", r.OK, "redis_errors", r.Errors, "board_hits", r.BoardHits, "board_misses", r.BoardMisses)
+				if r.OK {
+					if q, err := jobs.Stats(rdb.Client()); err == nil {
+						attrs = append(attrs, "queue_pending", q.Pending, "queue_active", q.Active, "queue_retry", q.Retry, "queue_archived", q.Archived)
+					}
+				}
 			}
 			slog.Info("stats", append([]any{
 				"ws_clients", ws.Clients,

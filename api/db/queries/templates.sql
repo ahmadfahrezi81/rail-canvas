@@ -30,3 +30,10 @@ ORDER BY t.created_at DESC;
 
 -- name: DeleteTemplate :exec
 DELETE FROM templates WHERE id = sqlc.arg(id) AND space_id = sqlc.arg(space_id);
+
+-- name: GetTemplateByID :one
+SELECT * FROM templates WHERE id = sqlc.arg(id) AND space_id = sqlc.arg(space_id);
+
+-- name: SetTemplateThumb :exec
+UPDATE templates SET thumb_key = sqlc.arg(thumb_key)
+WHERE id = sqlc.arg(id) AND space_id = sqlc.arg(space_id);

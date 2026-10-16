@@ -85,6 +85,23 @@ func (b *Bucket) ReadFirst(ctx context.Context, key string, n int64) ([]byte, er
 	return io.ReadAll(io.LimitReader(out.Body, n))
 }
 
+// Get refuses an object over max bytes rather than reading it all.
+func (b *Bucket) Get(ctx context.Context, key string, max int64) ([]byte, error) {
+	out, err := b.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &b.name, Key: &key})
+	if err != nil {
+		return nil, err
+	}
+	defer out.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(out.Body, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > max {
+		return nil, fmt.Errorf("object %s is over %d bytes", key, max)
+	}
+	return data, nil
+}
+
 func (b *Bucket) Put(ctx context.Context, key, contentType string, body []byte) error {
 	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &b.name, Key: &key, ContentType: &contentType,

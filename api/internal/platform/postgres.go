@@ -9,16 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// MaxConns is per process. Budget: replicas × this + worker + cli < max_connections (500).
-const MaxConns = 10
+// Pool sizes per process. Budget: API replicas × MaxConns + the worker + the CLI < max_connections (500).
+const (
+	MaxConns       = 10
+	WorkerMaxConns = 4 // two jobs at a time, and the hourly pass
+)
 
 // NewPostgres opens a pool and pings it, so a bad DATABASE_URL fails at boot.
-func NewPostgres(ctx context.Context, url string) (*pgxpool.Pool, error) {
+func NewPostgres(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
 	}
-	cfg.MaxConns = MaxConns
+	cfg.MaxConns = maxConns
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

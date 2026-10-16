@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,8 @@ type ObjectStore interface {
 	// ReadFirst reads at most n bytes from the start of the object.
 	ReadFirst(ctx context.Context, key string, n int64) ([]byte, error)
 	Delete(ctx context.Context, key string) error
+	// Get reads a whole object, refusing one larger than max bytes.
+	Get(ctx context.Context, key string, max int64) ([]byte, error)
 	// Put stores a small file the server made itself (snapshots). Browsers upload through SignUpload.
 	Put(ctx context.Context, key, contentType string, body []byte) error
 }
@@ -60,6 +63,7 @@ type Template struct {
 	CreatedAt      time.Time
 	URL            string
 	URLExpiresAt   time.Time
+	ThumbURL       string // empty until the worker made the thumbnail
 }
 
 type TemplateUpload struct {
@@ -72,10 +76,17 @@ type TemplateUpload struct {
 type Templates struct {
 	pool    *pgxpool.Pool
 	objects ObjectStore // nil when the bucket is not configured
+	queue   Queue       // nil: no thumbnails are made
 }
 
 func NewTemplates(pool *pgxpool.Pool, objects ObjectStore) *Templates {
 	return &Templates{pool: pool, objects: objects}
+}
+
+// WithQueue has the worker make a thumbnail of each completed template.
+func (s *Templates) WithQueue(q Queue) *Templates {
+	s.queue = q
+	return s
 }
 
 // TemplateKey is the only place an object key is built: from the URL's space and a server-made id.
@@ -180,10 +191,16 @@ func (s *Templates) Complete(ctx context.Context, spaceID, canvasID, templateID,
 	if err != nil {
 		return Template{}, err
 	}
+	// A thumbnail is a nicety: the template is ready either way.
+	if s.queue != nil {
+		if err := s.queue.Thumbnail(ctx, spaceID, templateID); err != nil {
+			slog.WarnContext(ctx, "thumbnail not queued", "template_id", templateID, "err", err)
+		}
+	}
 	return s.withURL(ctx, Template{
 		ID: ready.ID, X: int(ready.X), Y: int(ready.Y), Width: width, Height: height,
 		UploadedBy: ready.UploadedBy, CreatedAt: ready.CreatedAt,
-	}, ready.ObjectKey)
+	}, ready.ObjectKey, ready.ThumbKey)
 }
 
 // check returns the PNG's size, or a reason to reject it.
@@ -254,7 +271,7 @@ func (s *Templates) List(ctx context.Context, spaceID, canvasID uuid.UUID) ([]Te
 		t, err := s.withURL(ctx, Template{
 			ID: r.ID, X: int(r.X), Y: int(r.Y), Width: int(r.Width.Int16), Height: int(r.Height.Int16),
 			UploadedBy: r.UploadedBy, UploadedByName: r.UploadedByName.String, CreatedAt: r.CreatedAt,
-		}, r.ObjectKey)
+		}, r.ObjectKey, r.ThumbKey)
 		if err != nil {
 			return nil, err
 		}
@@ -296,16 +313,25 @@ func (s *Templates) Delete(ctx context.Context, spaceID, canvasID, templateID, u
 	if err := s.objects.Delete(ctx, t.ObjectKey); err != nil {
 		return err
 	}
+	// The thumbnail's key is fixed, so it is deleted even if the worker is still making it.
+	if err := s.objects.Delete(ctx, TemplateThumbKey(spaceID, templateID)); err != nil {
+		return err
+	}
 	return inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
 		return q.DeleteTemplate(ctx, store.DeleteTemplateParams{ID: templateID, SpaceID: spaceID})
 	})
 }
 
-func (s *Templates) withURL(ctx context.Context, t Template, key string) (Template, error) {
+func (s *Templates) withURL(ctx context.Context, t Template, key string, thumbKey pgtype.Text) (Template, error) {
 	url, err := s.objects.SignDownload(ctx, key, templateDownloadTTL)
 	if err != nil {
 		return Template{}, err
 	}
 	t.URL, t.URLExpiresAt = url, time.Now().Add(templateDownloadTTL)
+	if thumbKey.Valid {
+		if t.ThumbURL, err = s.objects.SignDownload(ctx, thumbKey.String, templateDownloadTTL); err != nil {
+			return Template{}, err
+		}
+	}
 	return t, nil
 }

@@ -40,10 +40,17 @@ type SnapshotPass struct {
 type Snapshots struct {
 	pool    *pgxpool.Pool
 	objects ObjectStore // nil when the bucket is not configured
+	queue   Queue       // nil: the API renders the snapshots itself
 }
 
 func NewSnapshots(pool *pgxpool.Pool, objects ObjectStore) *Snapshots {
 	return &Snapshots{pool: pool, objects: objects}
+}
+
+// WithQueue hands the hourly pass to the worker.
+func (s *Snapshots) WithQueue(q Queue) *Snapshots {
+	s.queue = q
+	return s
 }
 
 // SnapshotKey is the only place a snapshot's object key is built, from server values only.
@@ -52,8 +59,9 @@ func SnapshotKey(spaceID, canvasID uuid.UUID, hour time.Time) string {
 	return fmt.Sprintf("spaces/%s/snapshots/%s/%s.png", spaceID, canvasID, hour.UTC().Format("2006-01-02T15Z"))
 }
 
-// Run takes a pass at the top of every hour (UTC) until ctx ends. In-process for now;
-// Step 13 moves it to a cron service, and it must go before a second replica exists.
+// Run fires at the top of every hour (UTC) until ctx ends: it queues the pass for the
+// worker, or takes it here when the queue is unavailable. Step 13 moves the timer to a
+// cron service, and it must go before a second replica exists.
 func (s *Snapshots) Run(ctx context.Context) {
 	if s.objects == nil {
 		return
@@ -68,6 +76,14 @@ func (s *Snapshots) Run(ctx context.Context) {
 		case <-t.C:
 		}
 		start := time.Now()
+		if s.queue != nil {
+			err := s.queue.Snapshots(ctx, start)
+			if err == nil {
+				slog.Info("snapshots queued", "hour", start.UTC().Truncate(time.Hour))
+				continue
+			}
+			slog.Warn("snapshots not queued, taking them here", "err", err)
+		}
 		p := s.Pass(ctx, start)
 		slog.Info("snapshots", "canvases", p.Canvases, "rendered", p.Rendered, "skipped", p.Skipped,
 			"failed", p.Failed, "ms", time.Since(start).Milliseconds())

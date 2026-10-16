@@ -51,6 +51,7 @@ Learning is the point. The structure matters more than the feature list.
 │   ├── openapi.yaml          # the API contract
 │   ├── cmd/api/              # the HTTP service; Railway start command /app/api
 │   ├── cmd/cli/              # admin commands (bootstrap, migrate, bucket-cors, predeploy); /app/cli in the image
+│   ├── cmd/worker/           # the background jobs (asynq on Redis); Railway start command /app/worker
 │   ├── db/migrations/        # goose; embedded into the binary by db/embed.go
 │   ├── db/queries/           # sqlc input
 │   └── internal/
@@ -58,6 +59,7 @@ Learning is the point. The structure matters more than the feature list.
 │       ├── config/           # env parsing, fails fast at boot
 │       ├── handler/          # HTTP layer, implements apigen.StrictServerInterface
 │       ├── httpx/            # response helpers
+│       ├── jobs/             # job types, the queue client and its retry policy, shared by API and worker
 │       ├── middleware/       # request id, logging, recover, real IP, CORS, auth
 │       ├── ratelimit/        # per-key limits in Redis (shared by every API copy), memory as the fallback
 │       ├── platform/         # pgx pool, Redis client, the templates bucket (S3)
@@ -77,7 +79,7 @@ Learning is the point. The structure matters more than the feature list.
 └── .claude/tasks/            # one plan per step
 ```
 
-Planned, created by the step that needs it: `cmd/worker/` (Step 12), `ops/loadtest/` (Step 17), `functions/webhook/` (Step 15). The full tree is in Notion under "Repo and conventions".
+Planned, created by the step that needs it: `ops/loadtest/` (Step 17), `functions/webhook/` (Step 15). The full tree is in Notion under "Repo and conventions".
 
 ---
 
@@ -167,6 +169,18 @@ Railway Redis 8.2, private network only (`REDIS_URL`, a reference). It holds cop
 - **WebSocket tickets**: `ticket:{sha256}` with a 30-second expiry, redeemed with `GETDEL`, then the user is checked active. `ws_tickets` is the fallback.
 - **The breaker:** after any Redis failure, Redis is skipped for 5 seconds (`Redis.Up`), so an outage costs one timeout, not one per call. Client timeouts are short (dial 500 ms, read/write 200 ms) and never retried. A board that missed a placement while Redis was skipped is dropped before its next read.
 - **Stats line** adds `redis_ok`, `redis_errors`, `board_hits`, `board_misses`.
+
+## The worker
+
+`/app/worker`, the same image as the API, the Railway service `worker`. It takes jobs from Redis with `asynq` (`internal/jobs`) and does the slow work, so the API only does fast things.
+
+- **Jobs:** `template:thumbnail` (queued by `Templates.Complete`: a copy at most 64 × 64, nearest neighbour, `thumb_key`), `snapshots:pass` (queued by the API's hourly timer with the hour as its task id, so it is queued once whatever the number of API copies), `timelapse:build` (queued by `POST …/timelapses`: an animated GIF of the newest 240 snapshots).
+- **Services see only `service.Queue`**, an interface; `jobs.Client` is the real one, tests use a fake. Never assign a nil `*jobs.Client` to it: an interface holding a nil pointer is not nil.
+- **Retries: at most 3, exponential** (10 s, 20 s, 40 s, plus up to 20% jitter), the owner's call. `jobs.LastAttempt` tells a handler that a failure now archives the job; the timelapse job then marks its row `failed` so nothing stays `pending`.
+- **Every job is safe to run twice** (a retry may repeat work that half-succeeded).
+- **Without the queue:** thumbnails are skipped (the full image shows), the API takes the hourly pass itself, a timelapse request answers 503 and leaves no row. Queueing shares the API's Redis circuit breaker.
+- **Concurrency 2, Postgres pool 4.** On `SIGTERM` running jobs get 20 seconds; a job cut off goes back in the queue. The worker refuses to start without `REDIS_URL` or the bucket.
+- **Stats:** the API's line adds `queue_pending`, `queue_active`, `queue_retry`, `queue_archived`; the worker writes its own (`jobs_done`, `jobs_failed`, its pool).
 
 ## Logging
 

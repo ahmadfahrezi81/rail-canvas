@@ -270,6 +270,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/spaces/{spaceId}/canvases/{canvasId}/timelapses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The canvas's 10 newest timelapse requests, newest first. */
+        get: operations["listTimelapses"];
+        put?: never;
+        /**
+         * @description Ask the worker for an animated GIF of the canvas's hourly snapshots (the newest
+         *     240). Answers at once with a pending timelapse; poll the list until it is ready.
+         *     One pending per canvas (409).
+         */
+        post: operations["createTimelapse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels": {
         parameters: {
             query?: never;
@@ -456,6 +478,8 @@ export interface components {
             url: string;
             /** Format: date-time */
             urlExpiresAt: string;
+            /** @description Signed URL of a copy at most 64 × 64, made by the worker. Absent until it exists; show url meanwhile */
+            thumbUrl?: string;
         };
         Snapshot: {
             /** Format: uuid */
@@ -472,6 +496,27 @@ export interface components {
         };
         SnapshotList: {
             snapshots: components["schemas"]["Snapshot"][];
+        };
+        Timelapse: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "pending" | "ready" | "failed";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            /** @description One per hourly snapshot; when ready */
+            frames?: number;
+            /** @description Why it failed; when failed */
+            error?: string;
+            /** @description Signed URL of the animated GIF; when ready */
+            url?: string;
+            /** Format: date-time */
+            urlExpiresAt?: string;
+        };
+        TimelapseList: {
+            timelapses: components["schemas"]["Timelapse"][];
         };
         WebhookPlacePixelRequest: {
             /**
@@ -1290,6 +1335,124 @@ export interface operations {
             };
             /** @description Error */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTimelapses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Timelapses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelapseList"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTimelapse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Timelapse"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
