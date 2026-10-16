@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-17, end of session.** Update this file at the end of every session.
+**Updated 2026-10-17 (late), end of session.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -18,6 +18,7 @@
 | 9 | Nightly `pg_dump` to Cloudflare R2 (cron service `backup`, 19:00 UTC), healthchecks.io dead-man's switch, one real restore with matching row counts, `docs/runbook.md` | 009 |
 | 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
 | 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
+| 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. **Live; two checks left (see Next)** | 012 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -26,12 +27,20 @@
 
 ## Next
 
-**Step 12 — a worker service (stretch)** (task 012, not written yet). From Notion: a second
-service from the same image with another start command (`/app/worker`), `asynq` on Redis as the
-job queue. The API enqueues a thumbnail job for each uploaded template, and the snapshot
-trigger enqueues a render job, so the API stops rendering PNGs itself. Timelapses are built
-from the hourly snapshots. It adds another always-on service (about $0.50 a month in Notion's
-estimate): the owner checked Usage on 2026-10-17 (estimated $0.60 for the period).
+**Finish Step 12 (worker), merged and deployed 2026-10-17 (PR #16).** Done live: `worker started`,
+the `timelapses` migration, a timelapse of pixel-club's canvas built by the worker (2 frames,
+0.37 s), the API's stats line shows the queue (all zero). Still to check, then close the step
+(Notion tick, task 012 status, a docs PR):
+
+1. The worker's log shows `job done type="snapshots:pass"` at a full hour (and the API's log no
+   longer shows `msg=snapshots` passes, only `snapshots queued`)
+2. The owner uploads a template (PNG, at most 256 × 256 and 1 MB) and its thumbnail appears;
+   the worker's log shows `template:thumbnail`. The old checkerboard template has no thumbnail
+   (uploaded before the worker): expected
+
+Then **Step 13 — cron services** (task 013): the hourly snapshot timer moves out of the API into a
+cron service that queues `snapshots:pass`, plus a nightly cleanup (expired sessions, used
+tickets and codes, `ws_tickets`, pixel history past a retention window, old timelapses).
 
 How changes reach production now: branch → pull request → CI's four checks (required by the
 `main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli predeploy`
