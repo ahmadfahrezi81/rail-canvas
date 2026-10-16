@@ -1,6 +1,16 @@
 # Task 011 — Redis: a board cache, the cooldown, limits and tickets, and still working without it
 
-**Status: approved 2026-10-17, after a sanity check (cooldown per canvas, rebuild writes `ver`). PR #13 (Redis) merged: Redis 8.2, `redis.railway.internal`, no TCP proxy (the template adds its own volume). PR 2 open.**
+**Status: live 2026-10-17 (PR #13 Redis, #14 the feature). First live stats: `redis_ok=true redis_errors=0`, the board served from Redis; the owner's placements were written into the cached board by the compare-and-set script (no rebuild), checked in Railway's Redis console (`BITFIELD … GET u8 #32896` = 12, the `ver` hash one field per painted cell). Redis is 8.2 at `redis.railway.internal`, no TCP proxy; the template adds its own volume.**
+
+## Live restart drill (2026-10-17)
+
+`railway restart --service Redis` while the laptop loaded the board and asked for a WebSocket ticket every half second for 40 seconds (80 rounds):
+
+- Redis was down 18:01:03–18:01:05 UTC (SIGTERM, final RDB save, start)
+- **80 of 80 board loads 200 and tickets 201**; slowest board 1.1 s (the round that hit the restart), slowest ticket 0.36 s
+- The API logged **one** warning (`op="board get"`, `connection refused`, `errors_total=1`) and nothing else; `redis_ok` stayed true at the next stats line
+- Redis saved its data to its volume before stopping and loaded it on start, so the cached board survived the restart: `board_misses` stayed at 2 (no rebuild needed)
+- `railway restart` itself never returned (stopped by hand after the restart had completed). Use the dashboard, or don't wait on the CLI
 
 ## What changed while building
 

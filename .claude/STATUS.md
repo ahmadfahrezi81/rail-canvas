@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-16, end of session.** Update this file at the end of every session.
+**Updated 2026-10-17, end of session.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -17,6 +17,7 @@
 | 8 | Templates: PNG upload straight to a private bucket (`templates`, Singapore) with signed URLs, overlay on the board. Checked again on production 2026-10-15 (a 32×32 test template on pixel-club's canvas at 10, 10) | 008 |
 | 9 | Nightly `pg_dump` to Cloudflare R2 (cron service `backup`, 19:00 UTC), healthchecks.io dead-man's switch, one real restore with matching row counts, `docs/runbook.md` | 009 |
 | 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
+| 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -25,12 +26,12 @@
 
 ## Next
 
-**Step 11 — Redis (stretch)** (task 011, not written yet). From Notion: Railway Redis on the
-private network only; the board as a `BITFIELD` cache with a compare-and-set Lua script and a
-single-flight rebuild; the cooldown as `SET NX EX` with `last_placed_at` as the fallback; the
-login limiter and WebSocket tickets move to Redis; the app must keep working with Redis
-stopped. It is the first stretch step and adds an always-on service (cost): confirm with the
-owner before starting.
+**Step 12 — a worker service (stretch)** (task 012, not written yet). From Notion: a second
+service from the same image with another start command (`/app/worker`), `asynq` on Redis as the
+job queue. The API enqueues a thumbnail job for each uploaded template, and the snapshot
+trigger enqueues a render job, so the API stops rendering PNGs itself. Timelapses are built
+from the hourly snapshots. It adds another always-on service (about $0.50 a month in Notion's
+estimate): the owner checked Usage on 2026-10-17 (estimated $0.60 for the period).
 
 How changes reach production now: branch → pull request → CI's four checks (required by the
 `main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli predeploy`
@@ -42,8 +43,9 @@ How changes reach production now: branch → pull request → CI's four checks (
 - **`DEV_SPACE_ID`** is gone from the `api` service (the pull from Railway on 2026-10-14 lists only `APP_DB_PASSWORD`, `CORS_ORIGINS`, `DATABASE_URL`, `MIGRATE_DATABASE_URL`).
 - **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Backups:** check healthchecks.io now and then (green = last night's backup arrived). Railway's own Backups tab is Pro only. The template images are not backed up (decision in task 009). R2 still holds the laptop test dump `postgres/2026/10/15/153956-rail_canvas` (fake data); it expires on its own, or delete it
+- **Redis** holds copies only. `railway restart --service Redis` works but the CLI call does not return; use the dashboard. Redis keeps its data on its own volume across restarts (the template's)
 - **The snapshot ticker lives in the API process** (Step 10). It must move to a cron service (Step 13) before a second API replica (Step 14), or each replica snapshots
-- **`ws_tickets` keeps every used ticket** (2,544 rows on 2026-10-15). Harmless; Step 13's cleanup deletes them
+- **`ws_tickets` keeps every used ticket** (2,544 rows on 2026-10-15). Since Step 11 new tickets go to Redis and expire by themselves; the table is only the fallback. Step 13's cleanup empties it
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
 ## Not in git (lives on the owner's laptop)
