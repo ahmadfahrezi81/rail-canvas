@@ -1,10 +1,13 @@
-import { bucket, defineRailway, github, postgres, preserve, project, ref, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, postgres, preserve, project, redis, ref, service, volume } from "railway/iac";
 
 // Production, as code. Pulled from Railway 2026-10-14; change settings here, not in the dashboard.
 export default defineRailway(() => {
   const Postgres = postgres("Postgres", { region: "asia-southeast1-eqsg3a" });
   Postgres.networking = { privateNetworkEndpoint: "postgres" };
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "asia-southeast1-eqsg3a", sizeMB: 5000 });
+  // Board cache, cooldown, limits, tickets (Step 11). Private network only; holds nothing that cannot be rebuilt.
+  const Redis = redis("Redis", { region: "asia-southeast1-eqsg3a" });
+
   // Template images (Step 8). Private; the API signs URLs. Region is fixed for good: Singapore, beside the API.
   const templates = bucket("templates", { region: "sin" });
   const api = service("api", {
@@ -29,6 +32,7 @@ export default defineRailway(() => {
       S3_ENDPOINT: ref(templates, "ENDPOINT"),
       // Shared with our own programs that call the webhook (Step 15's bot). Set by the owner.
       WEBHOOK_SECRET: preserve(),
+      REDIS_URL: Redis.env.REDIS_URL,
     },
   });
 
@@ -53,6 +57,6 @@ export default defineRailway(() => {
 
   return project("rail-canvas", {
     variables: { managed: true },
-    resources: [Postgres, api, postgresVolume, templates, backup],
+    resources: [Postgres, api, postgresVolume, templates, backup, Redis],
   });
 });
