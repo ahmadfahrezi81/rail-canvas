@@ -111,6 +111,37 @@ func (q *Queries) GetTemplate(ctx context.Context, arg GetTemplateParams) (Templ
 	return i, err
 }
 
+const getTemplateByID = `-- name: GetTemplateByID :one
+SELECT id, space_id, canvas_id, uploaded_by, object_key, thumb_key, x, y, width, height, bytes, status, reject_reason, created_at FROM templates WHERE id = $1 AND space_id = $2
+`
+
+type GetTemplateByIDParams struct {
+	ID      uuid.UUID
+	SpaceID uuid.UUID
+}
+
+func (q *Queries) GetTemplateByID(ctx context.Context, arg GetTemplateByIDParams) (Template, error) {
+	row := q.db.QueryRow(ctx, getTemplateByID, arg.ID, arg.SpaceID)
+	var i Template
+	err := row.Scan(
+		&i.ID,
+		&i.SpaceID,
+		&i.CanvasID,
+		&i.UploadedBy,
+		&i.ObjectKey,
+		&i.ThumbKey,
+		&i.X,
+		&i.Y,
+		&i.Width,
+		&i.Height,
+		&i.Bytes,
+		&i.Status,
+		&i.RejectReason,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listReadyTemplates = `-- name: ListReadyTemplates :many
 SELECT t.id, t.space_id, t.canvas_id, t.uploaded_by, t.object_key, t.thumb_key, t.x, t.y, t.width, t.height, t.bytes, t.status, t.reject_reason, t.created_at, u.display_name AS uploaded_by_name
 FROM templates t LEFT JOIN users u ON u.id = t.uploaded_by
@@ -235,4 +266,20 @@ func (q *Queries) MarkTemplateRejected(ctx context.Context, arg MarkTemplateReje
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setTemplateThumb = `-- name: SetTemplateThumb :exec
+UPDATE templates SET thumb_key = $1
+WHERE id = $2 AND space_id = $3
+`
+
+type SetTemplateThumbParams struct {
+	ThumbKey pgtype.Text
+	ID       uuid.UUID
+	SpaceID  uuid.UUID
+}
+
+func (q *Queries) SetTemplateThumb(ctx context.Context, arg SetTemplateThumbParams) error {
+	_, err := q.db.Exec(ctx, setTemplateThumb, arg.ThumbKey, arg.ID, arg.SpaceID)
+	return err
 }

@@ -68,7 +68,7 @@ func bootstrap(args []string) error {
 	}
 
 	ctx := context.Background()
-	pool, err := platform.NewPostgres(ctx, os.Getenv("DATABASE_URL"))
+	pool, err := platform.NewPostgres(ctx, os.Getenv("DATABASE_URL"), platform.MaxConns)
 	if err != nil {
 		return err
 	}

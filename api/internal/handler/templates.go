@@ -127,6 +127,9 @@ func toAPITemplate(t service.Template) apigen.Template {
 		CreatedAt: t.CreatedAt, Url: t.URL, UrlExpiresAt: t.URLExpiresAt,
 	}
 	out.UploadedBy.Name = t.UploadedByName
+	if t.ThumbURL != "" {
+		out.ThumbUrl = &t.ThumbURL
+	}
 	if t.UploadedBy.Valid {
 		id := t.UploadedBy.UUID
 		out.UploadedBy.Id = &id

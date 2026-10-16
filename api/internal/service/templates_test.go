@@ -69,6 +69,19 @@ func (f *fakeObjects) ReadFirst(_ context.Context, key string, n int64) ([]byte,
 	return d[:min(int64(len(d)), n)], nil
 }
 
+func (f *fakeObjects) Get(_ context.Context, key string, max int64) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	o, ok := f.objects[key]
+	if !ok {
+		return nil, errors.New("no such object")
+	}
+	if int64(len(o.data)) > max {
+		return nil, errors.New("too large")
+	}
+	return o.data, nil
+}
+
 func (f *fakeObjects) Put(_ context.Context, key, contentType string, body []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

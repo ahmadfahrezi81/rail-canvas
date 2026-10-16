@@ -104,6 +104,19 @@ type Template struct {
 	CreatedAt    time.Time
 }
 
+type Timelapse struct {
+	ID          uuid.UUID
+	SpaceID     uuid.UUID
+	CanvasID    uuid.UUID
+	RequestedBy uuid.NullUUID
+	Status      string
+	ObjectKey   pgtype.Text
+	Frames      pgtype.Int4
+	Error       pgtype.Text
+	CreatedAt   time.Time
+	FinishedAt  *time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.4.0
+  version: 0.5.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -315,6 +315,39 @@ paths:
         "404": *error
         "503": *error
 
+  /spaces/{spaceId}/canvases/{canvasId}/timelapses:
+    get:
+      operationId: listTimelapses
+      description: The canvas's 10 newest timelapse requests, newest first.
+      parameters: [*spaceId, *canvasId]
+      responses:
+        "200":
+          description: Timelapses
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelapseList" }
+        "401": *error
+        "404": *error
+        "503": *error
+    post:
+      operationId: createTimelapse
+      description: |
+        Ask the worker for an animated GIF of the canvas's hourly snapshots (the newest
+        240). Answers at once with a pending timelapse; poll the list until it is ready.
+        One pending per canvas (409).
+      parameters: [*spaceId, *canvasId]
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Timelapse" }
+        "401": *error
+        "404": *error
+        "409": *error
+        "429": *error
+        "503": *error
+
   /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels:
     post:
       operationId: webhookPlacePixel
@@ -563,6 +596,9 @@ components:
         createdAt: { type: string, format: date-time }
         url: { type: string, description: Signed download URL }
         urlExpiresAt: { type: string, format: date-time }
+        thumbUrl:
+          type: string
+          description: Signed URL of a copy at most 64 × 64, made by the worker. Absent until it exists; show url meanwhile
 
     Snapshot:
       type: object
@@ -580,6 +616,27 @@ components:
         snapshots:
           type: array
           items: { $ref: "#/components/schemas/Snapshot" }
+
+    Timelapse:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, ready, failed] }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        frames: { type: integer, description: One per hourly snapshot; when ready }
+        error: { type: string, description: Why it failed; when failed }
+        url: { type: string, description: Signed URL of the animated GIF; when ready }
+        urlExpiresAt: { type: string, format: date-time }
+
+    TimelapseList:
+      type: object
+      required: [timelapses]
+      properties:
+        timelapses:
+          type: array
+          items: { $ref: "#/components/schemas/Timelapse" }
 
     WebhookPlacePixelRequest:
       type: object
