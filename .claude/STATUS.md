@@ -20,7 +20,7 @@
 | 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
 | 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. The live thumbnail check was skipped by the owner (tested locally) | 012 |
 | 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). **Cleanup still a dry run** (first count: 2,702 old tickets) | 013 |
-| 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. **Live; the cross-copy test with the owner is left** | 014 |
+| 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. Cross-copy test passed live (10 sockets split 5/5, one pixel, every socket got it once) | 014 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -29,12 +29,9 @@
 
 ## Next
 
-1. **Step 14 live test** (2 minutes, with the owner): open several listening sockets as the owner
-   across both copies, the owner places one pixel, every socket gets it once; stats show
-   `bus_published` on one copy and `bus_received` on the other. Then tick Step 14 in Notion
-2. **Step 13:** after tonight's dry run (20:00 UTC), read its counts; then a one-line pull request
+1. **Step 13:** after tonight's dry run (20:00 UTC), read its counts; then a one-line pull request
    drops `-dry-run` from `cleanup`'s start command. Then tick Step 13
-3. **Step 15** (task 015 to write): the Railway Function for a Discord or Telegram `/place`, with
+2. **Step 15** (task 015 to write): the Railway Function for a Discord or Telegram `/place`, with
    bot account linking (`bot_links`, `link_codes`)
 
 **Merge away from :50–:05 UTC, every time.** Each merge redeploys every service, the cron ones
