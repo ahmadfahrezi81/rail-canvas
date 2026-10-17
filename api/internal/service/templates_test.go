@@ -22,6 +22,7 @@ type fakeObjects struct {
 	objects map[string]fakeObject
 	signed  []string
 	putErr  error // Put fails with it when set
+	delErr  error // Delete fails with it when set
 }
 
 type fakeObject struct {
@@ -95,6 +96,9 @@ func (f *fakeObjects) Put(_ context.Context, key, contentType string, body []byt
 func (f *fakeObjects) Delete(_ context.Context, key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.delErr != nil {
+		return f.delErr
+	}
 	delete(f.objects, key)
 	return nil
 }
