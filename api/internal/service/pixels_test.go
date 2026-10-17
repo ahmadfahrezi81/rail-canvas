@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/ahmadfahrezi81/rail-canvas/api/internal/realtime"
 )
 
 type recorder struct {
@@ -16,9 +18,9 @@ type recorder struct {
 	msgs []string
 }
 
-func (r *recorder) Publish(topic string, _ any) {
+func (r *recorder) Publish(_, canvasID uuid.UUID, _ any) {
 	r.mu.Lock()
-	r.msgs = append(r.msgs, topic)
+	r.msgs = append(r.msgs, realtime.CanvasTopic(canvasID))
 	r.mu.Unlock()
 }
 

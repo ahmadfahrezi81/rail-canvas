@@ -23,8 +23,9 @@ func (e *CooldownError) Error() string {
 	return "cooldown: next placement at " + e.NextPlaceAt.Format(time.RFC3339)
 }
 
+// Publisher announces to every API copy's sockets (realtime.Bus).
 type Publisher interface {
-	Publish(topic string, msg any)
+	Publish(spaceID, canvasID uuid.UUID, msg any)
 }
 
 type Placed struct {
@@ -139,7 +140,7 @@ func (s *Pixels) Place(ctx context.Context, spaceID, canvasID, userID uuid.UUID,
 	if err != nil {
 		return Placed{}, err
 	}
-	s.pub.Publish(realtime.CanvasTopic(canvasID), realtime.PixelPlaced(canvasID, out.PixelID, x, y, color))
+	s.pub.Publish(spaceID, canvasID, realtime.PixelPlaced(canvasID, out.PixelID, x, y, color))
 	s.redis.cacheCell(ctx, spaceID, canvasID, width, x, y, color, out.PixelID)
 	return out, nil
 }

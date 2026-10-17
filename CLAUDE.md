@@ -138,6 +138,9 @@ Joining later: timeout and body size limit.
 ## Realtime
 
 - **Placing goes through REST; the socket only announces.** `service.Pixels.Place` claims the cooldown, writes `pixels` and `canvas_pixels` in one transaction, and publishes `pixel:placed` **after** the commit. Never publish inside a transaction.
+- **Two API copies (Railway replicas) share placements through Redis pub/sub** (`realtime.Bus`). `Publish(space, canvas, msg)` delivers to this copy's sockets, then `PUBLISH`es on `space:{s}:canvas:{c}` tagged with the copy's id (`RAILWAY_REPLICA_ID`, on every log line as `replica`). One `PSUBSCRIBE space:*:canvas:*` per copy, on its own connection with default timeouts, passes the others' messages on and skips its own: nobody sees a pixel twice.
+- **A gap becomes a reload, never a wrong board.** A listener that reconnects sends its sockets `resync`; a copy that could not announce a pixel sends `resync` for that canvas once Redis answers (checked every 30 s). The frontend reloads the board on `resync`. Stats line: `bus_published`, `bus_received`, `bus_resyncs`.
+- **Never keep shared state in the process.** With two copies, anything in memory exists twice: timers fire twice, counts split, sockets are only half known. It goes in Postgres or Redis.
 - **The cooldown claim is one atomic `UPDATE space_members … WHERE last_placed_at <= now() - cooldown RETURNING`.** No row means too soon. Five simultaneous clicks place one pixel (tested).
 - **`/ws` is mounted directly on the router**, outside the generated interface: an upgrade hands the connection over. Login is a single-use 30-second ticket from `POST /ws/ticket`, because browsers cannot send `Authorization` on a WebSocket.
 - **Message shapes live in `openapi.yaml`** (`WSClientMessage`, `WSServerMessage`), unreferenced by any path; `oapi-codegen.yaml` sets `skip-prune` so Go keeps them.

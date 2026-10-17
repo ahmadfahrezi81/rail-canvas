@@ -18,7 +18,8 @@ export default defineRailway(() => {
     // Migrations, then the bucket's CORS from CORS_ORIGINS.
     preDeploy: "/app/cli predeploy",
     healthcheck: "/health",
-    replicas: { "asia-southeast1-eqsg3a": 1 },
+    // Two copies: WebSockets reach each other through Redis pub/sub (realtime.Bus).
+    replicas: { "asia-southeast1-eqsg3a": 2 },
     networking: { privateNetworkEndpoint: "rail-canvas" },
     env: {
       APP_DB_PASSWORD: preserve(),
