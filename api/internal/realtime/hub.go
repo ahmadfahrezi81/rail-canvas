@@ -1,5 +1,5 @@
-// Package realtime: the in-process WebSocket hub. One topic per canvas.
-// Behind Publish, so Step 14 can fan out through Redis pub/sub instead.
+// Package realtime: the in-process WebSocket hub, one topic per canvas, and the Bus that
+// passes its messages between API copies through Redis pub/sub.
 package realtime
 
 import (
@@ -65,13 +65,39 @@ func PixelPlaced(canvasID uuid.UUID, pixelID int64, x, y, color int) apigen.WSSe
 	}
 }
 
-// Publish never blocks: a client whose buffer is full is disconnected instead.
+func Resync(canvasID *uuid.UUID) apigen.WSServerMessage {
+	return apigen.WSServerMessage{Type: apigen.WSServerMessageTypeResync, CanvasId: canvasID}
+}
+
+// Publish sends to this copy's clients on the topic. It never blocks: a client whose
+// buffer is full is disconnected instead.
 func (h *Hub) Publish(topic string, msg any) {
 	b, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("realtime: marshal", "err", err)
 		return
 	}
+	h.deliver(topic, b)
+}
+
+// ResyncAll tells every client of this copy to reload: it may have missed messages.
+func (h *Hub) ResyncAll() {
+	b, _ := json.Marshal(Resync(nil))
+	h.mu.Lock()
+	clients := make([]*client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.Unlock()
+	for _, c := range clients {
+		select {
+		case c.send <- b:
+		default: // a full buffer: that client is being dropped as too slow anyway
+		}
+	}
+}
+
+func (h *Hub) deliver(topic string, b []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for c := range h.topics[topic] {

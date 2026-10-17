@@ -7,7 +7,7 @@ type Pixel = { pixelId: number; x: number; y: number; color: number };
 /**
  * Keeps one canvas live: ticket → socket → subscribe → load the board → replay
  * anything that arrived meanwhile. Reconnects with growing waits and reloads,
- * so a dropped message is never lost for long. Each cell keeps the newest
+ * so a dropped message is never lost for long; a "resync" from the server reloads too. Each cell keeps the newest
  * pixelId it has shown and ignores older ones, whatever order they arrive in.
  */
 export function useLiveCanvas(
@@ -65,28 +65,37 @@ export function useLiveCanvas(
       }
       const ws = socket;
 
+      // Loads the board, then replays what arrived meanwhile. Also on "resync": the server
+      // may have missed messages from the other API copies.
+      async function load() {
+        buffer ??= [];
+        try {
+          const fresh = await canvasesApi.board(spaceId, canvasId);
+          if (stopped || ws !== socket) return;
+          versions.current = new Map();
+          boardRef.current = fresh;
+          setBoard(fresh);
+          const pending = buffer ?? [];
+          buffer = null;
+          pending.sort((a, b) => a.pixelId - b.pixelId).forEach(apply);
+          attempt = 0;
+          setStatus("live");
+        } catch {
+          ws.close();
+        }
+      }
+
       ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe", spaceId, canvasId }));
-      ws.onmessage = async (e) => {
+      ws.onmessage = (e) => {
         const m = JSON.parse(e.data) as WSServerMessage;
         if (m.type === "pixel:placed" && m.pixelId != null) {
           const p = { pixelId: m.pixelId, x: m.x!, y: m.y!, color: m.color! };
           if (buffer) buffer.push(p);
           else apply(p);
         } else if (m.type === "subscribed") {
-          try {
-            const fresh = await canvasesApi.board(spaceId, canvasId);
-            if (stopped || ws !== socket) return;
-            versions.current = new Map();
-            boardRef.current = fresh;
-            setBoard(fresh);
-            const pending = buffer ?? [];
-            buffer = null;
-            pending.sort((a, b) => a.pixelId - b.pixelId).forEach(apply);
-            attempt = 0;
-            setStatus("live");
-          } catch {
-            ws.close();
-          }
+          void load();
+        } else if (m.type === "resync" && (m.canvasId == null || m.canvasId === canvasId)) {
+          void load();
         }
       };
       ws.onclose = () => {

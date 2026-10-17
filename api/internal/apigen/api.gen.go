@@ -93,6 +93,7 @@ func (e WSClientMessageType) Valid() bool {
 const (
 	WSServerMessageTypeError       WSServerMessageType = "error"
 	WSServerMessageTypePixelPlaced WSServerMessageType = "pixel:placed"
+	WSServerMessageTypeResync      WSServerMessageType = "resync"
 	WSServerMessageTypeSubscribed  WSServerMessageType = "subscribed"
 )
 
@@ -102,6 +103,8 @@ func (e WSServerMessageType) Valid() bool {
 	case WSServerMessageTypeError:
 		return true
 	case WSServerMessageTypePixelPlaced:
+		return true
+	case WSServerMessageTypeResync:
 		return true
 	case WSServerMessageTypeSubscribed:
 		return true
@@ -342,12 +345,14 @@ type WSServerMessage struct {
 	Color    *int                `json:"color,omitempty"`
 	Error    *string             `json:"error,omitempty"`
 	PixelId  *int64              `json:"pixelId,omitempty"`
-	Type     WSServerMessageType `json:"type"`
-	X        *int                `json:"x,omitempty"`
-	Y        *int                `json:"y,omitempty"`
+
+	// Type resync: events may have been missed (the server lost touch with the other API copies); reload the board. Without canvasId, every canvas
+	Type WSServerMessageType `json:"type"`
+	X    *int                `json:"x,omitempty"`
+	Y    *int                `json:"y,omitempty"`
 }
 
-// WSServerMessageType defines model for WSServerMessage.Type.
+// WSServerMessageType resync: events may have been missed (the server lost touch with the other API copies); reload the board. Without canvasId, every canvas
 type WSServerMessageType string
 
 // WSTicket defines model for WSTicket.

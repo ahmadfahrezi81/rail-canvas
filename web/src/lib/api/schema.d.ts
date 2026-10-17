@@ -426,8 +426,11 @@ export interface components {
             canvasId: string;
         };
         WSServerMessage: {
-            /** @enum {string} */
-            type: "subscribed" | "pixel:placed" | "error";
+            /**
+             * @description resync: events may have been missed (the server lost touch with the other API copies); reload the board. Without canvasId, every canvas
+             * @enum {string}
+             */
+            type: "subscribed" | "pixel:placed" | "resync" | "error";
             /** Format: uuid */
             canvasId?: string;
             /** Format: int64 */

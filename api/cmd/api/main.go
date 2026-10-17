@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/apigen"
 	"github.com/ahmadfahrezi81/rail-canvas/api/internal/config"
@@ -38,9 +40,14 @@ func run() error {
 		return err
 	}
 
+	// Railway's id for this copy (its log view filters on it); a random one elsewhere.
+	replica := os.Getenv("RAILWAY_REPLICA_ID")
+	if replica == "" {
+		replica = uuid.NewString()
+	}
 	logger := slog.New(middleware.ContextHandler{
 		Handler: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}),
-	}).With("service", "api", "env", cfg.Env)
+	}).With("service", "api", "env", cfg.Env, "replica", replica)
 	slog.SetDefault(logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -52,7 +59,10 @@ func run() error {
 	}
 	defer pool.Close()
 
-	var rdb *service.Redis
+	var (
+		rdb    *service.Redis
+		listen *redis.Client
+	)
 	if cfg.RedisURL != "" {
 		client, err := platform.NewRedis(cfg.RedisURL)
 		if err != nil {
@@ -60,12 +70,21 @@ func run() error {
 		}
 		defer client.Close()
 		rdb = service.NewRedis(client)
+		if listen, err = platform.NewRedisListener(cfg.RedisURL); err != nil {
+			return err
+		}
+		defer listen.Close()
 	}
 	slog.Info("redis", "enabled", rdb != nil)
 
 	auth := service.NewAuth(pool).WithRedis(rdb)
 	canvases := service.NewCanvases(pool).WithRedis(rdb)
 	hub := realtime.NewHub(auth, canvases, cfg.CORSOrigins)
+	// Placements reach the other API copies' sockets through Redis pub/sub.
+	bus := realtime.NewBus(hub, replica)
+	if rdb != nil {
+		bus.WithRedis(rdb.Client(), listen, rdb.Up, rdb.Failed)
+	}
 	var objects service.ObjectStore
 	if cfg.Bucket != nil {
 		objects = platform.NewBucket(platform.BucketConfig(*cfg.Bucket))
@@ -78,7 +97,7 @@ func run() error {
 		queue = jobs.NewClient(rdb.Client(), rdb.Up, rdb.Failed)
 	}
 	snapshots := service.NewSnapshots(pool, objects)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub).WithRedis(rdb),
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, bus).WithRedis(rdb),
 		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue), cfg.WebhookSecret)
 	if rdb != nil {
 		server.ShareLimits(rdb.Client(), rdb.Failed, rdb.Up)
@@ -93,7 +112,8 @@ func run() error {
 	}
 	srv.RegisterOnShutdown(hub.Close) // Shutdown does not close upgraded connections itself
 
-	go logStats(ctx, hub, pool, rdb)
+	go logStats(ctx, hub, bus, pool, rdb)
+	go bus.Run(ctx)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -156,7 +176,7 @@ func routes(cfg config.Config, server *handler.Server, auth middleware.Authentic
 }
 
 // logStats writes the numbers later steps and the load test are read against.
-func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool, rdb *service.Redis) {
+func logStats(ctx context.Context, hub *realtime.Hub, bus *realtime.Bus, pool *pgxpool.Pool, rdb *service.Redis) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -168,7 +188,9 @@ func logStats(ctx context.Context, hub *realtime.Hub, pool *pgxpool.Pool, rdb *s
 			attrs := []any{}
 			if rdb != nil {
 				r := rdb.Stats(ctx)
-				attrs = append(attrs, "redis_ok", r.OK, "redis_errors", r.Errors, "board_hits", r.BoardHits, "board_misses", r.BoardMisses)
+				b := bus.Stats()
+				attrs = append(attrs, "redis_ok", r.OK, "redis_errors", r.Errors, "board_hits", r.BoardHits, "board_misses", r.BoardMisses,
+					"bus_published", b.Published, "bus_received", b.Received, "bus_resyncs", b.Resyncs)
 				if r.OK {
 					if q, err := jobs.Stats(rdb.Client()); err == nil {
 						attrs = append(attrs, "queue_pending", q.Pending, "queue_active", q.Active, "queue_retry", q.Retry, "queue_archived", q.Archived)

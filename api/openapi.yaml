@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.5.0
+  version: 0.6.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -549,7 +549,10 @@ components:
       type: object
       required: [type]
       properties:
-        type: { type: string, enum: [subscribed, "pixel:placed", error] }
+        type:
+          type: string
+          enum: [subscribed, "pixel:placed", resync, error]
+          description: "resync: events may have been missed (the server lost touch with the other API copies); reload the board. Without canvasId, every canvas"
         canvasId: { type: string, format: uuid }
         pixelId: { type: integer, format: int64 }
         x: { type: integer }
