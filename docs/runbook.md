@@ -4,6 +4,7 @@ What to do when something breaks. Written 2026-10-15, after the first real backu
 Keep each section short enough to follow at 2 a.m.; fix it here when reality differs.
 
 - [Backups: where they are, how to check them](#backups)
+- [Snapshots and the nightly cleanup](#snapshots-and-the-nightly-cleanup)
 - [Reach the database from the laptop (temporarily)](#reach-the-database-from-the-laptop-temporarily)
 - [Restore production from a backup](#restore-production-from-a-backup)
 - [Restore onto a new server](#restore-onto-a-new-server)
@@ -27,6 +28,25 @@ Keep each section short enough to follow at 2 a.m.; fix it here when reality dif
   volume backups need the Pro plan.
 - **Not encrypted:** the dumps hold emails and bcrypt / SHA-256 hashes, never plain passwords or
   tokens. The bucket is private and its key reaches only that bucket.
+
+## Snapshots and the nightly cleanup
+
+- **Snapshots:** the cron service `snapshot` runs `/app/cli snapshot` every full hour (UTC). It
+  queues one `snapshots:pass` job and exits; the `worker` renders it. Good: `snapshot queued` in
+  `snapshot`'s log, `job done type="snapshots:pass"` in `worker`'s. With Redis down it renders
+  them itself (`snapshot not queued, taking it here`). Run one now:
+  `railway cron run --service snapshot --yes` (the same hour twice is one job, harmless)
+- **Cleanup:** the cron service `cleanup` runs `/app/cli cleanup` at 20:00 UTC (04:00 Singapore),
+  one hour after the backup, so last night's dump in R2 still holds anything it deleted. One log
+  line, `cleanup sessions=… tickets=… invites=… pixels=… timelapses=… templates=…`. The rules
+  (7 days, 1 hour, 30 days…) are constants at the top of `api/internal/service/cleanup.go`
+- **Is it working?** healthchecks.io, check `rail-canvas cleanup`. Run one now:
+  `railway cron run --service cleanup --yes`
+- **Count without deleting:** set the start command to `/app/cli cleanup -dry-run` in
+  `.railway/railway.ts` (a pull request), or run it against a restored copy on the laptop
+- **Deleted by mistake:** restore last night's backup beside production (below) and copy the rows
+  back. Files deleted from the `templates` bucket (old timelapse GIFs, unfinished uploads) are
+  gone; a timelapse can be made again
 
 ## Reach the database from the laptop (temporarily)
 
@@ -110,7 +130,7 @@ one, switch to it, check, **then** delete the old one.
 | Secret | Where it lives | How to replace it |
 | --- | --- | --- |
 | R2 key | `backup` variables `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare → R2 → Manage API tokens → new Account token, Object Read & Write, only `rail-canvas-backups`. Paste both into `backup`'s variables, run a backup now, then delete the old token |
-| healthchecks ping URL | `backup` variable `HC_PING_URL` | healthchecks.io → make a new check with the same schedule (cron `0 19 * * *`, UTC, grace 1 hour), paste its URL, run a backup now (the new check turns green), delete the old check |
+| healthchecks ping URLs | `backup` and `cleanup`, variable `HC_PING_URL` each (two checks) | healthchecks.io → make a new check with the same schedule (cron `0 19 * * *`, UTC, grace 1 hour), paste its URL, run a backup now (the new check turns green), delete the old check. The same for `cleanup` (cron `0 20 * * *`) |
 | `RAILWAY_TOKEN` | GitHub secret, used by the Railway plan and apply workflows | Railway → project Settings → Tokens → new token for `production`. GitHub → repo Settings → Secrets → Actions → update `RAILWAY_TOKEN`. Delete the old token in Railway |
 | `app` password | `api` variable `APP_DB_PASSWORD`, inside `DATABASE_URL` | Open the database (section above). `ALTER ROLE app WITH PASSWORD '…'` as `postgres`, then the same value in `APP_DB_PASSWORD`; the API redeploys with it. A few seconds of errors in between |
 | `postgres` password | the `Postgres` service; referenced by `api` (`MIGRATE_DATABASE_URL`) and `backup` | Railway → `Postgres` → its credentials / Variables (Railway updates the user and the references together where it offers that). Then redeploy `api` and run a backup to prove both still connect |

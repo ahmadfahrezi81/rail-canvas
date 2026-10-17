@@ -77,7 +77,7 @@ func run() error {
 	if rdb != nil {
 		queue = jobs.NewClient(rdb.Client(), rdb.Up, rdb.Failed)
 	}
-	snapshots := service.NewSnapshots(pool, objects).WithQueue(queue)
+	snapshots := service.NewSnapshots(pool, objects)
 	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, hub).WithRedis(rdb),
 		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue), cfg.WebhookSecret)
 	if rdb != nil {
@@ -94,7 +94,6 @@ func run() error {
 	srv.RegisterOnShutdown(hub.Close) // Shutdown does not close upgraded connections itself
 
 	go logStats(ctx, hub, pool, rdb)
-	go snapshots.Run(ctx) // hourly, while the bucket is configured; moves to a cron service in Step 13
 
 	errCh := make(chan error, 1)
 	go func() {

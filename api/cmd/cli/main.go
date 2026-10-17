@@ -21,7 +21,9 @@ commands:
   bootstrap   create the first space and its owner (once; refuses if users exist)
   migrate     apply pending migrations (MIGRATE_DATABASE_URL, as postgres)
   bucket-cors let CORS_ORIGINS upload to and download from the templates bucket (S3_*)
-  predeploy   migrate, then bucket-cors: Railway's pre-deploy command`
+  predeploy   migrate, then bucket-cors: Railway's pre-deploy command
+  snapshot    queue this hour's snapshot pass for the worker (cron service "snapshot", hourly)
+  cleanup     delete what has expired; -dry-run only counts (cron service "cleanup", nightly)`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -40,6 +42,10 @@ func main() {
 		if err = migrateCmd(); err == nil {
 			err = bucketCORS()
 		}
+	case "snapshot":
+		err = snapshotCmd()
+	case "cleanup":
+		err = cleanupCmd(os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown command %q\n\n%s", os.Args[1], usage)
 	}

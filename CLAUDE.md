@@ -50,7 +50,7 @@ Learning is the point. The structure matters more than the feature list.
 ├── api/                      # Go module (github.com/ahmadfahrezi81/rail-canvas/api)
 │   ├── openapi.yaml          # the API contract
 │   ├── cmd/api/              # the HTTP service; Railway start command /app/api
-│   ├── cmd/cli/              # admin commands (bootstrap, migrate, bucket-cors, predeploy); /app/cli in the image
+│   ├── cmd/cli/              # admin commands (bootstrap, migrate, bucket-cors, predeploy) and the cron jobs (snapshot, cleanup); /app/cli in the image
 │   ├── cmd/worker/           # the background jobs (asynq on Redis); Railway start command /app/worker
 │   ├── db/migrations/        # goose; embedded into the binary by db/embed.go
 │   ├── db/queries/           # sqlc input
@@ -156,7 +156,7 @@ Joining later: timeout and body size limit.
 
 ## Snapshots and the webhook
 
-- **Hourly snapshots run inside the API** (`Snapshots.Run`, started in `main`): at each full hour UTC, every canvas that changed becomes a PNG, one pixel per cell, at `spaces/{s}/snapshots/{c}/{hour}.png` in the templates bucket, with a `snapshots` row. One transaction per canvas reads the cells with their `pixel_id`, claims the row (`UNIQUE (canvas_id, taken_at)`: two API versions during a deploy make one), uploads, commits; a failed upload leaves no row. **Step 13 moves this to a cron service; it must be gone before a second replica.**
+- **Hourly snapshots** (`Snapshots.Pass`, run by the worker; see Cron services): every canvas that changed since its last snapshot becomes a PNG, one pixel per cell, at `spaces/{s}/snapshots/{c}/{hour}.png` in the templates bucket, with a `snapshots` row. One transaction per canvas reads the cells with their `pixel_id`, claims the row (`UNIQUE (canvas_id, taken_at)`: a pass run twice makes one), uploads, commits; a failed upload leaves no row.
 - **`POST /webhooks/spaces/{s}/canvases/{c}/pixels` is for our own programs, not browsers.** `X-Webhook-Secret` is compared with `WEBHOOK_SECRET` by SHA-256 in constant time; the caller names the user, who must be an active member and waits out the cooldown (`Pixels.PlaceAs`, `source = 'bot'`). Step 15 replaces the named user with a linked bot account.
 
 ## Redis
@@ -174,13 +174,24 @@ Railway Redis 8.2, private network only (`REDIS_URL`, a reference). It holds cop
 
 `/app/worker`, the same image as the API, the Railway service `worker`. It takes jobs from Redis with `asynq` (`internal/jobs`) and does the slow work, so the API only does fast things.
 
-- **Jobs:** `template:thumbnail` (queued by `Templates.Complete`: a copy at most 64 × 64, nearest neighbour, `thumb_key`), `snapshots:pass` (queued by the API's hourly timer with the hour as its task id, so it is queued once whatever the number of API copies), `timelapse:build` (queued by `POST …/timelapses`: an animated GIF of the newest 240 snapshots).
+- **Jobs:** `template:thumbnail` (queued by `Templates.Complete`: a copy at most 64 × 64, nearest neighbour, `thumb_key`), `snapshots:pass` (queued by the `snapshot` cron service with the hour as its task id, so it is queued once however often it runs), `timelapse:build` (queued by `POST …/timelapses`: an animated GIF of the newest 240 snapshots).
 - **Services see only `service.Queue`**, an interface; `jobs.Client` is the real one, tests use a fake. Never assign a nil `*jobs.Client` to it: an interface holding a nil pointer is not nil.
 - **Retries: at most 3, exponential** (10 s, 20 s, 40 s, plus up to 20% jitter), the owner's call. `jobs.LastAttempt` tells a handler that a failure now archives the job; the timelapse job then marks its row `failed` so nothing stays `pending`.
 - **Every job is safe to run twice** (a retry may repeat work that half-succeeded).
-- **Without the queue:** thumbnails are skipped (the full image shows), the API takes the hourly pass itself, a timelapse request answers 503 and leaves no row. Queueing shares the API's Redis circuit breaker.
+- **Without the queue:** thumbnails are skipped (the full image shows), `cli snapshot` takes the hourly pass itself, a timelapse request answers 503 and leaves no row. Queueing shares the API's Redis circuit breaker.
 - **Concurrency 2, Postgres pool 4.** On `SIGTERM` running jobs get 20 seconds; a job cut off goes back in the queue. The worker refuses to start without `REDIS_URL` or the bucket.
 - **Stats:** the API's line adds `queue_pending`, `queue_active`, `queue_retry`, `queue_archived`; the worker writes its own (`jobs_done`, `jobs_failed`, its pool).
+
+## Cron services
+
+Railway starts these on a schedule (UTC); each run does its work and exits, so nothing runs or
+bills between runs. Same image as the API, `restartPolicyType: "NEVER"`. **No timer runs inside
+the API**: with two replicas it would fire twice.
+
+- **`snapshot`**, `0 * * * *`: `/app/cli snapshot` queues this hour's `snapshots:pass` for the worker; without Redis it takes the pass itself
+- **`cleanup`**, `0 20 * * *` (an hour after the backup): `/app/cli cleanup` (`service.Cleanup`) deletes expired sessions, tickets and invites, pixel history older than 30 days (never the board), timelapses beyond the newest 10 per canvas, and uploads that never completed. `-dry-run` only counts. A file is deleted before its row, so a failed file delete keeps the row for the next run; pixels go 5,000 per transaction, per canvas. healthchecks.io ping as for the backup (`HC_PING_URL`)
+- **A run must end on its own** (5 and 15 minute limits): Railway skips the next run while one is still going
+- **A new rule for a new table goes in `cleanup.go`** with a test on both sides of its line
 
 ## Logging
 
