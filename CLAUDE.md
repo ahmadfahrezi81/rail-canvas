@@ -238,6 +238,8 @@ Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/he
 - **Change it by pull request.** `railway-plan.yml` comments Railway's plan on the PR; merging is the approval; `railway-apply.yml` applies exactly that plan. A direct push to `main` has no plan and fails.
 - **Never edit a declared setting in the dashboard.** The next apply fails (the environment changed since the plan); put the change in the file instead.
 - **Nothing is deleted by CI.** Removing a resource from the file deletes it on apply, so the apply runs with `confirm-destructive: false`: a plan that deletes anything fails. Postgres stays declared. Deletes are done by hand, with the owner.
+- **A plan is only valid for the project as it was.** Any dashboard change after the plan (even pasting a `preserve()` variable's value) makes the apply fail with "The environment changed since this plan was computed". Paste values first, then plan; if it happens, open a new pull request for a fresh plan.
+- **Railway drops `checkSuites` when it creates a service.** A new service needs a second pull request to apply Wait for CI.
 - **Variables are managed by the file, values are not in it.** `preserve()` keeps the value Railway holds. Never `railway config pull --include-variables`.
 - **Locally:** `railway config plan` (read-only) to preview; `apply` only through the pull request.
 - The workflows use `RAILWAY_TOKEN`, a project token for `production` in GitHub's secrets.

@@ -55,7 +55,8 @@ export default defineRailway(() => {
   });
 
   // Cron services: Railway starts them on schedule (UTC); each run does its work and exits.
-  // Railway drops checkSuites when it creates a service, so a new one needs a second apply.
+  // Railway drops checkSuites when it creates a service, so a new one needs a second apply,
+  // planned after its variables are set: any dashboard change after a plan makes its apply fail.
   const snapshot = service("snapshot", {
     source: github("ahmadfahrezi81/rail-canvas", { branch: "main", checkSuites: true }),
     start: "/app/cli snapshot",
