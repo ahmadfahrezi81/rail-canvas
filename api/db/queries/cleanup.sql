@@ -47,3 +47,9 @@ WHERE status <> 'pending'
 -- Uploads that never completed: the signed URL lasted 5 minutes.
 SELECT id, object_key FROM templates
 WHERE space_id = sqlc.arg(space_id) AND status = 'pending' AND created_at < sqlc.arg(before);
+
+-- name: CountOldLinkCodes :one
+SELECT count(*) FROM link_codes WHERE expires_at < sqlc.arg(before);
+
+-- name: DeleteOldLinkCodes :execrows
+DELETE FROM link_codes WHERE expires_at < sqlc.arg(before);

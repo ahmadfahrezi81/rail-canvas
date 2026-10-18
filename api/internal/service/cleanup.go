@@ -21,12 +21,13 @@ const (
 	TimelapsesKept       = 10                  // per canvas, what the list shows
 	FailedTimelapsesKept = 7 * 24 * time.Hour
 	PendingTemplateKept  = 24 * time.Hour
+	LinkCodesKept        = 24 * time.Hour // after expiry
 	pixelDeleteBatch     = 5000
 )
 
 // CleanupCounts is what one run deleted, or with a dry run would delete.
 type CleanupCounts struct {
-	Sessions, Tickets, Invites, Pixels, Timelapses, Templates int64
+	Sessions, Tickets, Invites, LinkCodes, Pixels, Timelapses, Templates int64
 }
 
 type Cleanup struct {
@@ -60,6 +61,7 @@ func (c *Cleanup) Run(ctx context.Context, now time.Time, dryRun bool) (CleanupC
 	rule("sessions", q.CountOldSessions, q.DeleteOldSessions, now.Add(-SessionsKept), &n.Sessions)
 	rule("ws_tickets", q.CountOldWSTickets, q.DeleteOldWSTickets, now.Add(-TicketsKept), &n.Tickets)
 	rule("invites", q.CountOldInvites, q.DeleteOldInvites, now.Add(-InvitesKept), &n.Invites)
+	rule("link_codes", q.CountOldLinkCodes, q.DeleteOldLinkCodes, now.Add(-LinkCodesKept), &n.LinkCodes)
 
 	// Across tenants: spaces has no RLS; everything else is read inside each space's tenant.
 	spaces, err := q.ListSpaceIDs(ctx)

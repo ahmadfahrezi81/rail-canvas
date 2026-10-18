@@ -24,6 +24,17 @@ func (q *Queries) CountOldInvites(ctx context.Context, before time.Time) (int64,
 	return count, err
 }
 
+const countOldLinkCodes = `-- name: CountOldLinkCodes :one
+SELECT count(*) FROM link_codes WHERE expires_at < $1
+`
+
+func (q *Queries) CountOldLinkCodes(ctx context.Context, before time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countOldLinkCodes, before)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countOldPixels = `-- name: CountOldPixels :one
 SELECT count(*) FROM pixels
 WHERE canvas_id = $1 AND space_id = $2 AND placed_at < $3
@@ -73,6 +84,18 @@ DELETE FROM invites WHERE expires_at < $1
 
 func (q *Queries) DeleteOldInvites(ctx context.Context, before time.Time) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteOldInvites, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteOldLinkCodes = `-- name: DeleteOldLinkCodes :execrows
+DELETE FROM link_codes WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteOldLinkCodes(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldLinkCodes, before)
 	if err != nil {
 		return 0, err
 	}

@@ -17,6 +17,21 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for BotPlatform.
+const (
+	Telegram BotPlatform = "telegram"
+)
+
+// Valid indicates whether the value is a known member of the BotPlatform enum.
+func (e BotPlatform) Valid() bool {
+	switch e {
+	case Telegram:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTemplateRequestContentType.
 const (
 	Imagepng CreateTemplateRequestContentType = "image/png"
@@ -120,6 +135,51 @@ type AuthResponse struct {
 	User  User   `json:"user"`
 }
 
+// BotLinkCode defines model for BotLinkCode.
+type BotLinkCode struct {
+	// Code 8 characters, shown as K7QM-2PXD
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// BotLinkRequest defines model for BotLinkRequest.
+type BotLinkRequest struct {
+	Code     string      `json:"code"`
+	Platform BotPlatform `json:"platform"`
+
+	// PlatformUserId The chat platform's user id
+	PlatformUserId string `json:"platformUserId"`
+}
+
+// BotLinked defines model for BotLinked.
+type BotLinked struct {
+	CanvasName  string `json:"canvasName"`
+	DisplayName string `json:"displayName"`
+}
+
+// BotPlaceRequest defines model for BotPlaceRequest.
+type BotPlaceRequest struct {
+	// Color A colour name from the palette (red) or its index (5)
+	Color          string      `json:"color"`
+	Platform       BotPlatform `json:"platform"`
+	PlatformUserId string      `json:"platformUserId"`
+	X              int         `json:"x"`
+	Y              int         `json:"y"`
+}
+
+// BotPlacedPixel defines model for BotPlacedPixel.
+type BotPlacedPixel struct {
+	Color       int       `json:"color"`
+	ColorName   string    `json:"colorName"`
+	NextPlaceAt time.Time `json:"nextPlaceAt"`
+	PixelId     int64     `json:"pixelId"`
+	X           int       `json:"x"`
+	Y           int       `json:"y"`
+}
+
+// BotPlatform defines model for BotPlatform.
+type BotPlatform string
+
 // Canvas defines model for Canvas.
 type Canvas struct {
 	CooldownSeconds int                `json:"cooldownSeconds"`
@@ -203,6 +263,9 @@ type Palette struct {
 	// Colors Hex colors. A cell's byte is an index into this list.
 	Colors []string `json:"colors"`
 	Id     string   `json:"id"`
+
+	// Names One name per color, the words the bot accepts (red, darkblue)
+	Names []string `json:"names"`
 }
 
 // PlacePixelRequest defines model for PlacePixelRequest.
@@ -361,19 +424,13 @@ type WSTicket struct {
 	Ticket    string    `json:"ticket"`
 }
 
-// WebhookPlacePixelRequest defines model for WebhookPlacePixelRequest.
-type WebhookPlacePixelRequest struct {
-	// Color Index into the canvas palette
-	Color int `json:"color"`
-
-	// UserId The member placing the pixel
-	UserId openapi_types.UUID `json:"userId"`
-	X      int                `json:"x"`
-	Y      int                `json:"y"`
+// WebhookBotLinkParams defines parameters for WebhookBotLink.
+type WebhookBotLinkParams struct {
+	XWebhookSecret *string `json:"X-Webhook-Secret,omitempty"`
 }
 
-// WebhookPlacePixelParams defines parameters for WebhookPlacePixel.
-type WebhookPlacePixelParams struct {
+// WebhookBotPlacePixelParams defines parameters for WebhookBotPlacePixel.
+type WebhookBotPlacePixelParams struct {
 	XWebhookSecret *string `json:"X-Webhook-Secret,omitempty"`
 }
 
@@ -395,8 +452,11 @@ type PlacePixelJSONRequestBody = PlacePixelRequest
 // CreateTemplateJSONRequestBody defines body for CreateTemplate for application/json ContentType.
 type CreateTemplateJSONRequestBody = CreateTemplateRequest
 
-// WebhookPlacePixelJSONRequestBody defines body for WebhookPlacePixel for application/json ContentType.
-type WebhookPlacePixelJSONRequestBody = WebhookPlacePixelRequest
+// WebhookBotLinkJSONRequestBody defines body for WebhookBotLink for application/json ContentType.
+type WebhookBotLinkJSONRequestBody = BotLinkRequest
+
+// WebhookBotPlacePixelJSONRequestBody defines body for WebhookBotPlacePixel for application/json ContentType.
+type WebhookBotPlacePixelJSONRequestBody = BotPlaceRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -428,6 +488,9 @@ type ServerInterface interface {
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
 	GetCanvasBoard(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
 
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/bot-link-code)
+	CreateBotLinkCode(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
+
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID)
 
@@ -455,8 +518,11 @@ type ServerInterface interface {
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID)
 
-	// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
-	WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams)
+	// (POST /webhooks/bot/link)
+	WebhookBotLink(w http.ResponseWriter, r *http.Request, params WebhookBotLinkParams)
+
+	// (POST /webhooks/bot/pixels)
+	WebhookBotPlacePixel(w http.ResponseWriter, r *http.Request, params WebhookBotPlacePixelParams)
 
 	// (POST /ws/ticket)
 	CreateWSTicket(w http.ResponseWriter, r *http.Request)
@@ -511,6 +577,11 @@ func (_ Unimplemented) GetCanvasBoard(w http.ResponseWriter, r *http.Request, sp
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (POST /spaces/{spaceId}/canvases/{canvasId}/bot-link-code)
+func (_ Unimplemented) CreateBotLinkCode(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 func (_ Unimplemented) PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -556,8 +627,13 @@ func (_ Unimplemented) CreateInvite(w http.ResponseWriter, r *http.Request, spac
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
-func (_ Unimplemented) WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams) {
+// (POST /webhooks/bot/link)
+func (_ Unimplemented) WebhookBotLink(w http.ResponseWriter, r *http.Request, params WebhookBotLinkParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /webhooks/bot/pixels)
+func (_ Unimplemented) WebhookBotPlacePixel(w http.ResponseWriter, r *http.Request, params WebhookBotPlacePixelParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -737,6 +813,41 @@ func (siw *ServerInterfaceWrapper) GetCanvasBoard(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCanvasBoard(w, r, spaceId, canvasId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBotLinkCode operation middleware
+func (siw *ServerInterfaceWrapper) CreateBotLinkCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "spaceId" -------------
+	var spaceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "canvasId" -------------
+	var canvasId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBotLinkCode(w, r, spaceId, canvasId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1070,32 +1181,14 @@ func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
-// WebhookPlacePixel operation middleware
-func (siw *ServerInterfaceWrapper) WebhookPlacePixel(w http.ResponseWriter, r *http.Request) {
+// WebhookBotLink operation middleware
+func (siw *ServerInterfaceWrapper) WebhookBotLink(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
 
-	// ------------- Path parameter "spaceId" -------------
-	var spaceId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "spaceId", chi.URLParam(r, "spaceId"), &spaceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spaceId", Err: err})
-		return
-	}
-
-	// ------------- Path parameter "canvasId" -------------
-	var canvasId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "canvasId", chi.URLParam(r, "canvasId"), &canvasId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "canvasId", Err: err})
-		return
-	}
-
 	// Parameter object where we will unmarshal all parameters from the context
-	var params WebhookPlacePixelParams
+	var params WebhookBotLinkParams
 
 	headers := r.Header
 
@@ -1119,7 +1212,48 @@ func (siw *ServerInterfaceWrapper) WebhookPlacePixel(w http.ResponseWriter, r *h
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.WebhookPlacePixel(w, r, spaceId, canvasId, params)
+		siw.Handler.WebhookBotLink(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WebhookBotPlacePixel operation middleware
+func (siw *ServerInterfaceWrapper) WebhookBotPlacePixel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WebhookBotPlacePixelParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Webhook-Secret" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Webhook-Secret")]; found {
+		var XWebhookSecret string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Webhook-Secret", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Webhook-Secret", valueList[0], &XWebhookSecret, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Webhook-Secret", Err: err})
+			return
+		}
+
+		params.XWebhookSecret = &XWebhookSecret
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WebhookBotPlacePixel(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1314,7 +1448,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/timelapses", wrapper.CreateTimelapse)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels", wrapper.WebhookPlacePixel)
+		r.Post(options.BaseURL+"/spaces/{spaceId}/canvases/{canvasId}/bot-link-code", wrapper.CreateBotLinkCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/webhooks/bot/link", wrapper.WebhookBotLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/webhooks/bot/pixels", wrapper.WebhookBotPlacePixel)
 	})
 
 	return r
@@ -1765,6 +1905,71 @@ func (response GetCanvasBoard404JSONResponse) VisitGetCanvasBoardResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBotLinkCodeRequestObject struct {
+	SpaceId  openapi_types.UUID `json:"spaceId"`
+	CanvasId openapi_types.UUID `json:"canvasId"`
+}
+
+type CreateBotLinkCodeResponseObject interface {
+	VisitCreateBotLinkCodeResponse(w http.ResponseWriter) error
+}
+
+type CreateBotLinkCode201JSONResponse BotLinkCode
+
+func (response CreateBotLinkCode201JSONResponse) VisitCreateBotLinkCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBotLinkCode401JSONResponse Error
+
+func (response CreateBotLinkCode401JSONResponse) VisitCreateBotLinkCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBotLinkCode404JSONResponse Error
+
+func (response CreateBotLinkCode404JSONResponse) VisitCreateBotLinkCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBotLinkCode429JSONResponse Error
+
+func (response CreateBotLinkCode429JSONResponse) VisitCreateBotLinkCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2477,34 +2682,32 @@ func (response CreateInvite404JSONResponse) VisitCreateInviteResponse(w http.Res
 	return err
 }
 
-type WebhookPlacePixelRequestObject struct {
-	SpaceId  openapi_types.UUID `json:"spaceId"`
-	CanvasId openapi_types.UUID `json:"canvasId"`
-	Params   WebhookPlacePixelParams
-	Body     *WebhookPlacePixelJSONRequestBody
+type WebhookBotLinkRequestObject struct {
+	Params WebhookBotLinkParams
+	Body   *WebhookBotLinkJSONRequestBody
 }
 
-type WebhookPlacePixelResponseObject interface {
-	VisitWebhookPlacePixelResponse(w http.ResponseWriter) error
+type WebhookBotLinkResponseObject interface {
+	VisitWebhookBotLinkResponse(w http.ResponseWriter) error
 }
 
-type WebhookPlacePixel201JSONResponse PlacedPixel
+type WebhookBotLink200JSONResponse BotLinked
 
-func (response WebhookPlacePixel201JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink200JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
+	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
 }
 
-type WebhookPlacePixel400JSONResponse Error
+type WebhookBotLink400JSONResponse Error
 
-func (response WebhookPlacePixel400JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink400JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2516,9 +2719,9 @@ func (response WebhookPlacePixel400JSONResponse) VisitWebhookPlacePixelResponse(
 	return err
 }
 
-type WebhookPlacePixel401JSONResponse Error
+type WebhookBotLink401JSONResponse Error
 
-func (response WebhookPlacePixel401JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink401JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2530,9 +2733,9 @@ func (response WebhookPlacePixel401JSONResponse) VisitWebhookPlacePixelResponse(
 	return err
 }
 
-type WebhookPlacePixel404JSONResponse Error
+type WebhookBotLink404JSONResponse Error
 
-func (response WebhookPlacePixel404JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink404JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2544,9 +2747,9 @@ func (response WebhookPlacePixel404JSONResponse) VisitWebhookPlacePixelResponse(
 	return err
 }
 
-type WebhookPlacePixel429JSONResponse CooldownError
+type WebhookBotLink429JSONResponse Error
 
-func (response WebhookPlacePixel429JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink429JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2558,9 +2761,102 @@ func (response WebhookPlacePixel429JSONResponse) VisitWebhookPlacePixelResponse(
 	return err
 }
 
-type WebhookPlacePixel503JSONResponse Error
+type WebhookBotLink503JSONResponse Error
 
-func (response WebhookPlacePixel503JSONResponse) VisitWebhookPlacePixelResponse(w http.ResponseWriter) error {
+func (response WebhookBotLink503JSONResponse) VisitWebhookBotLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixelRequestObject struct {
+	Params WebhookBotPlacePixelParams
+	Body   *WebhookBotPlacePixelJSONRequestBody
+}
+
+type WebhookBotPlacePixelResponseObject interface {
+	VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error
+}
+
+type WebhookBotPlacePixel201JSONResponse BotPlacedPixel
+
+func (response WebhookBotPlacePixel201JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixel400JSONResponse Error
+
+func (response WebhookBotPlacePixel400JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixel401JSONResponse Error
+
+func (response WebhookBotPlacePixel401JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixel404JSONResponse Error
+
+func (response WebhookBotPlacePixel404JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixel429JSONResponse CooldownError
+
+func (response WebhookBotPlacePixel429JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WebhookBotPlacePixel503JSONResponse Error
+
+func (response WebhookBotPlacePixel503JSONResponse) VisitWebhookBotPlacePixelResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2637,6 +2933,9 @@ type StrictServerInterface interface {
 	// (GET /spaces/{spaceId}/canvases/{canvasId}/board)
 	GetCanvasBoard(ctx context.Context, request GetCanvasBoardRequestObject) (GetCanvasBoardResponseObject, error)
 
+	// (POST /spaces/{spaceId}/canvases/{canvasId}/bot-link-code)
+	CreateBotLinkCode(ctx context.Context, request CreateBotLinkCodeRequestObject) (CreateBotLinkCodeResponseObject, error)
+
 	// (POST /spaces/{spaceId}/canvases/{canvasId}/pixels)
 	PlacePixel(ctx context.Context, request PlacePixelRequestObject) (PlacePixelResponseObject, error)
 
@@ -2664,8 +2963,11 @@ type StrictServerInterface interface {
 	// (POST /spaces/{spaceId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
 
-	// (POST /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels)
-	WebhookPlacePixel(ctx context.Context, request WebhookPlacePixelRequestObject) (WebhookPlacePixelResponseObject, error)
+	// (POST /webhooks/bot/link)
+	WebhookBotLink(ctx context.Context, request WebhookBotLinkRequestObject) (WebhookBotLinkResponseObject, error)
+
+	// (POST /webhooks/bot/pixels)
+	WebhookBotPlacePixel(ctx context.Context, request WebhookBotPlacePixelRequestObject) (WebhookBotPlacePixelResponseObject, error)
 
 	// (POST /ws/ticket)
 	CreateWSTicket(ctx context.Context, request CreateWSTicketRequestObject) (CreateWSTicketResponseObject, error)
@@ -2961,6 +3263,33 @@ func (sh *strictHandler) GetCanvasBoard(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// CreateBotLinkCode operation middleware
+func (sh *strictHandler) CreateBotLinkCode(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
+	var request CreateBotLinkCodeRequestObject
+
+	request.SpaceId = spaceId
+	request.CanvasId = canvasId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBotLinkCode(ctx, request.(CreateBotLinkCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBotLinkCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBotLinkCodeResponseObject); ok {
+		if err := validResponse.VisitCreateBotLinkCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PlacePixel operation middleware
 func (sh *strictHandler) PlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID) {
 	var request PlacePixelRequestObject
@@ -3219,15 +3548,13 @@ func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, sp
 	}
 }
 
-// WebhookPlacePixel operation middleware
-func (sh *strictHandler) WebhookPlacePixel(w http.ResponseWriter, r *http.Request, spaceId openapi_types.UUID, canvasId openapi_types.UUID, params WebhookPlacePixelParams) {
-	var request WebhookPlacePixelRequestObject
+// WebhookBotLink operation middleware
+func (sh *strictHandler) WebhookBotLink(w http.ResponseWriter, r *http.Request, params WebhookBotLinkParams) {
+	var request WebhookBotLinkRequestObject
 
-	request.SpaceId = spaceId
-	request.CanvasId = canvasId
 	request.Params = params
 
-	var body WebhookPlacePixelJSONRequestBody
+	var body WebhookBotLinkJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
@@ -3235,18 +3562,51 @@ func (sh *strictHandler) WebhookPlacePixel(w http.ResponseWriter, r *http.Reques
 	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.WebhookPlacePixel(ctx, request.(WebhookPlacePixelRequestObject))
+		return sh.ssi.WebhookBotLink(ctx, request.(WebhookBotLinkRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookPlacePixel")
+		handler = middleware(handler, "WebhookBotLink")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(WebhookPlacePixelResponseObject); ok {
-		if err := validResponse.VisitWebhookPlacePixelResponse(w); err != nil {
+	} else if validResponse, ok := response.(WebhookBotLinkResponseObject); ok {
+		if err := validResponse.VisitWebhookBotLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WebhookBotPlacePixel operation middleware
+func (sh *strictHandler) WebhookBotPlacePixel(w http.ResponseWriter, r *http.Request, params WebhookBotPlacePixelParams) {
+	var request WebhookBotPlacePixelRequestObject
+
+	request.Params = params
+
+	var body WebhookBotPlacePixelJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WebhookBotPlacePixel(ctx, request.(WebhookBotPlacePixelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WebhookBotPlacePixel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WebhookBotPlacePixelResponseObject); ok {
+		if err := validResponse.VisitWebhookBotPlacePixelResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -108,7 +108,7 @@ func cleanupCmd(args []string) error {
 		}
 		start := time.Now()
 		n, err := service.NewCleanup(pool, objects).Run(ctx, start, *dryRun)
-		slog.Info("cleanup", "dry_run", *dryRun, "sessions", n.Sessions, "tickets", n.Tickets, "invites", n.Invites,
+		slog.Info("cleanup", "dry_run", *dryRun, "sessions", n.Sessions, "tickets", n.Tickets, "invites", n.Invites, "link_codes", n.LinkCodes,
 			"pixels", n.Pixels, "timelapses", n.Timelapses, "templates", n.Templates, "ms", time.Since(start).Milliseconds())
 		return err
 	}()

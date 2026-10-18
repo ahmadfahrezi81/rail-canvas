@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	res, err := NewServer("test", nil, nil, nil, nil, nil, nil, nil, "").GetHealth(context.Background(), apigen.GetHealthRequestObject{})
+	res, err := NewServer("test", nil, nil, nil, nil, nil, nil, nil, nil, "").GetHealth(context.Background(), apigen.GetHealthRequestObject{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestRoutesNeedAUser(t *testing.T) {
-	s := NewServer("test", nil, nil, nil, nil, nil, nil, nil, "")
+	s := NewServer("test", nil, nil, nil, nil, nil, nil, nil, nil, "")
 	ctx := context.Background()
 
 	if res, _ := s.ListCanvases(ctx, apigen.ListCanvasesRequestObject{}); !is[apigen.ListCanvases401JSONResponse](res) {
@@ -47,6 +47,9 @@ func TestRoutesNeedAUser(t *testing.T) {
 	if res, _ := s.CreateWSTicket(ctx, apigen.CreateWSTicketRequestObject{}); !is[apigen.CreateWSTicket401JSONResponse](res) {
 		t.Errorf("ws ticket: got %T, want 401", res)
 	}
+	if res, _ := s.CreateBotLinkCode(ctx, apigen.CreateBotLinkCodeRequestObject{}); !is[apigen.CreateBotLinkCode401JSONResponse](res) {
+		t.Errorf("bot link code: got %T, want 401", res)
+	}
 }
 
 func is[T any](v any) bool {
@@ -57,22 +60,26 @@ func is[T any](v any) bool {
 func TestWebhookSecret(t *testing.T) {
 	ctx := context.Background()
 	secret := strings.Repeat("s", 63) + "t"
-	s := NewServer("test", nil, nil, nil, nil, nil, nil, nil, secret)
+	s := NewServer("test", nil, nil, nil, nil, nil, nil, nil, nil, secret)
 	for name, got := range map[string]*string{
 		"missing":          nil,
 		"wrong":            ptr("nope"),
 		"last char wrong":  ptr(strings.Repeat("s", 64)),
 		"secret plus more": ptr(secret + "x"),
 	} {
-		req := apigen.WebhookPlacePixelRequestObject{Params: apigen.WebhookPlacePixelParams{XWebhookSecret: got}, Body: &apigen.WebhookPlacePixelRequest{}}
-		if res, _ := s.WebhookPlacePixel(ctx, req); !is[apigen.WebhookPlacePixel401JSONResponse](res) {
-			t.Errorf("%s: got %T, want 401", name, res)
+		place := apigen.WebhookBotPlacePixelRequestObject{Params: apigen.WebhookBotPlacePixelParams{XWebhookSecret: got}, Body: &apigen.BotPlaceRequest{}}
+		if res, _ := s.WebhookBotPlacePixel(ctx, place); !is[apigen.WebhookBotPlacePixel401JSONResponse](res) {
+			t.Errorf("place, %s: got %T, want 401", name, res)
+		}
+		link := apigen.WebhookBotLinkRequestObject{Params: apigen.WebhookBotLinkParams{XWebhookSecret: got}, Body: &apigen.BotLinkRequest{}}
+		if res, _ := s.WebhookBotLink(ctx, link); !is[apigen.WebhookBotLink401JSONResponse](res) {
+			t.Errorf("link, %s: got %T, want 401", name, res)
 		}
 	}
 
-	off := NewServer("test", nil, nil, nil, nil, nil, nil, nil, "")
-	req := apigen.WebhookPlacePixelRequestObject{Params: apigen.WebhookPlacePixelParams{XWebhookSecret: ptr(secret)}, Body: &apigen.WebhookPlacePixelRequest{}}
-	if res, _ := off.WebhookPlacePixel(ctx, req); !is[apigen.WebhookPlacePixel503JSONResponse](res) {
+	off := NewServer("test", nil, nil, nil, nil, nil, nil, nil, nil, "")
+	req := apigen.WebhookBotPlacePixelRequestObject{Params: apigen.WebhookBotPlacePixelParams{XWebhookSecret: ptr(secret)}, Body: &apigen.BotPlaceRequest{}}
+	if res, _ := off.WebhookBotPlacePixel(ctx, req); !is[apigen.WebhookBotPlacePixel503JSONResponse](res) {
 		t.Errorf("no secret configured: got %T, want 503", res)
 	}
 }

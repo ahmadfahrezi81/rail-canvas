@@ -113,6 +113,16 @@ func TestCleanupRules(t *testing.T) {
 	}
 	inviteOld, inviteNew := invite("-31 days"), invite("-29 days")
 
+	linkCode := func(expires string) []byte {
+		h := randomHash()
+		if _, err := f.pool.Exec(ctx, `INSERT INTO link_codes (code_hash, user_id, space_id, canvas_id, expires_at)
+			VALUES ($1, $2, $3, $4, now() + $5::interval)`, h, user, f.space, f.canvas, expires); err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	codeOld, codeNew := linkCode("-25 hours"), linkCode("-23 hours")
+
 	// A pixel 31 days old that is still on the board: gone from the history, still on the board.
 	f.oldPixels(t, 1, days(31))
 	f.oldPixels(t, 1, days(29))
@@ -149,6 +159,8 @@ func TestCleanupRules(t *testing.T) {
 		"ticket expired 30 min ago":  {hashGone("ws_tickets", "ticket_hash", ticketNew), false},
 		"invite expired 31 days ago": {hashGone("invites", "code_hash", inviteOld), true},
 		"invite expired 29 days ago": {hashGone("invites", "code_hash", inviteNew), false},
+		"link code expired 25 h ago": {hashGone("link_codes", "code_hash", codeOld), true},
+		"link code expired 23 h ago": {hashGone("link_codes", "code_hash", codeNew), false},
 		"pending template, 2 days":   {tenantCount(t, f.pool, f.space, "SELECT count(*) FROM templates WHERE id = $1", staleID) == 0, true},
 		"pending template, 1 hour":   {tenantCount(t, f.pool, f.space, "SELECT count(*) FROM templates WHERE id = $1", freshID) == 0, false},
 		"ready template, 2 days":     {tenantCount(t, f.pool, f.space, "SELECT count(*) FROM templates WHERE id = $1", readyID) == 0, false},

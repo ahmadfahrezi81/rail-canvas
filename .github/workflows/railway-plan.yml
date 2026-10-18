@@ -1,9 +1,10 @@
 # A pull request that changes .railway/ gets Railway's plan as a comment. Merging approves it.
+# functions/ too: a Function's code is embedded in the plan, so a change to it is a change to Railway.
 name: Railway plan
 
 on:
   pull_request:
-    paths: [".railway/**"]
+    paths: [".railway/**", "functions/**"]
 
 permissions:
   contents: read

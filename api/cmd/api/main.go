@@ -97,8 +97,10 @@ func run() error {
 		queue = jobs.NewClient(rdb.Client(), rdb.Up, rdb.Failed)
 	}
 	snapshots := service.NewSnapshots(pool, objects)
-	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, service.NewPixels(pool, bus).WithRedis(rdb),
-		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue), cfg.WebhookSecret)
+	pixels := service.NewPixels(pool, bus).WithRedis(rdb)
+	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, pixels,
+		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue),
+		service.NewBot(pool, pixels), cfg.WebhookSecret)
 	if rdb != nil {
 		server.ShareLimits(rdb.Client(), rdb.Failed, rdb.Up)
 	}

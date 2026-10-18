@@ -292,7 +292,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels": {
+    "/spaces/{spaceId}/canvases/{canvasId}/bot-link-code": {
         parameters: {
             query?: never;
             header?: never;
@@ -302,12 +302,51 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * @description Place a pixel for a member, from one of our own programs (Step 15's bot),
-         *     not a browser. The caller proves itself with X-Webhook-Secret, not a bearer
-         *     token, and names the user. Same membership check and cooldown as the
-         *     browser; the pixel is recorded with source "bot".
+         * @description A one-time code (10 minutes) that links a chat account (Telegram) to the caller,
+         *     drawing on this canvas. The player sends "/link CODE" to the bot. Linking again
+         *     from another canvas moves the link.
          */
-        post: operations["webhookPlacePixel"];
+        post: operations["createBotLinkCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/bot/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description From our bot Function, not a browser: redeem a link code for a chat account.
+         *     The caller proves itself with X-Webhook-Secret, not a bearer token.
+         */
+        post: operations["webhookBotLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/bot/pixels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description From our bot Function: place a pixel for a linked chat account, on its linked
+         *     canvas. Same membership check and cooldown as the browser; recorded with source "bot".
+         */
+        post: operations["webhookBotPlacePixel"];
         delete?: never;
         options?: never;
         head?: never;
@@ -370,6 +409,8 @@ export interface components {
             id: string;
             /** @description Hex colors. A cell's byte is an index into this list. */
             colors: string[];
+            /** @description One name per color, the words the bot accepts (red, darkblue) */
+            names: string[];
         };
         Canvas: {
             /** Format: uuid */
@@ -521,16 +562,41 @@ export interface components {
         TimelapseList: {
             timelapses: components["schemas"]["Timelapse"][];
         };
-        WebhookPlacePixelRequest: {
-            /**
-             * Format: uuid
-             * @description The member placing the pixel
-             */
-            userId: string;
+        /** @enum {string} */
+        BotPlatform: "telegram";
+        BotLinkCode: {
+            /** @description 8 characters, shown as K7QM-2PXD */
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        BotLinkRequest: {
+            platform: components["schemas"]["BotPlatform"];
+            /** @description The chat platform's user id */
+            platformUserId: string;
+            code: string;
+        };
+        BotLinked: {
+            displayName: string;
+            canvasName: string;
+        };
+        BotPlaceRequest: {
+            platform: components["schemas"]["BotPlatform"];
+            platformUserId: string;
             x: number;
             y: number;
-            /** @description Index into the canvas palette */
+            /** @description A colour name from the palette (red) or its index (5) */
+            color: string;
+        };
+        BotPlacedPixel: {
+            /** Format: int64 */
+            pixelId: number;
+            x: number;
+            y: number;
             color: number;
+            colorName: string;
+            /** Format: date-time */
+            nextPlaceAt: string;
         };
         TemplateList: {
             templates: components["schemas"]["Template"][];
@@ -1474,21 +1540,139 @@ export interface operations {
             };
         };
     };
-    webhookPlacePixel: {
+    createBotLinkCode: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Webhook-Secret"?: string;
-            };
+            header?: never;
             path: {
                 spaceId: string;
                 canvasId: string;
             };
             cookie?: never;
         };
+        requestBody?: never;
+        responses: {
+            /** @description Created; the code is shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotLinkCode"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    webhookBotLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Webhook-Secret"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WebhookPlacePixelRequest"];
+                "application/json": components["schemas"]["BotLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Linked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotLinked"];
+                };
+            };
+            /** @description Error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    webhookBotPlacePixel: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Webhook-Secret"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotPlaceRequest"];
             };
         };
         responses: {
@@ -1498,7 +1682,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlacedPixel"];
+                    "application/json": components["schemas"]["BotPlacedPixel"];
                 };
             };
             /** @description Error */

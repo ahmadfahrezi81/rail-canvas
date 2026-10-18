@@ -102,6 +102,8 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Backup scripts
         run: shellcheck -x -e SC1091 ops/backup/*.sh
+      - name: Bot Function tests, in the image Railway runs it on
+        run: docker run --rm -v "$PWD/functions/webhook:/src:ro" -w /src --entrypoint bun ghcr.io/railwayapp/function-bun:1.4.0 test
       - name: Backup image
         uses: docker/build-push-action@v7
         with:

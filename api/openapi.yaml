@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.6.0
+  version: 0.7.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -21,6 +21,12 @@ x-canvas-id: &canvasId
   in: path
   required: true
   schema: { type: string, format: uuid }
+
+x-webhook-secret: &webhookSecret
+  name: X-Webhook-Secret
+  in: header
+  required: false
+  schema: { type: string }
 
 x-template-id: &templateId
   name: templateId
@@ -348,33 +354,68 @@ paths:
         "429": *error
         "503": *error
 
-  /webhooks/spaces/{spaceId}/canvases/{canvasId}/pixels:
+  /spaces/{spaceId}/canvases/{canvasId}/bot-link-code:
     post:
-      operationId: webhookPlacePixel
+      operationId: createBotLinkCode
       description: |
-        Place a pixel for a member, from one of our own programs (Step 15's bot),
-        not a browser. The caller proves itself with X-Webhook-Secret, not a bearer
-        token, and names the user. Same membership check and cooldown as the
-        browser; the pixel is recorded with source "bot".
+        A one-time code (10 minutes) that links a chat account (Telegram) to the caller,
+        drawing on this canvas. The player sends "/link CODE" to the bot. Linking again
+        from another canvas moves the link.
+      parameters: [*spaceId, *canvasId]
+      responses:
+        "201":
+          description: Created; the code is shown once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BotLinkCode" }
+        "401": *error
+        "404": *error
+        "429": *error
+
+  /webhooks/bot/link:
+    post:
+      operationId: webhookBotLink
+      description: |
+        From our bot Function, not a browser: redeem a link code for a chat account.
+        The caller proves itself with X-Webhook-Secret, not a bearer token.
       security: []
-      parameters:
-        - *spaceId
-        - *canvasId
-        - name: X-Webhook-Secret
-          in: header
-          required: false
-          schema: { type: string }
+      parameters: [*webhookSecret]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/WebhookPlacePixelRequest" }
+            schema: { $ref: "#/components/schemas/BotLinkRequest" }
+      responses:
+        "200":
+          description: Linked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BotLinked" }
+        "400": *error
+        "401": *error
+        "404": *error
+        "429": *error
+        "503": *error
+
+  /webhooks/bot/pixels:
+    post:
+      operationId: webhookBotPlacePixel
+      description: |
+        From our bot Function: place a pixel for a linked chat account, on its linked
+        canvas. Same membership check and cooldown as the browser; recorded with source "bot".
+      security: []
+      parameters: [*webhookSecret]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BotPlaceRequest" }
       responses:
         "201":
           description: Placed
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/PlacedPixel" }
+              schema: { $ref: "#/components/schemas/BotPlacedPixel" }
         "400": *error
         "401": *error
         "404": *error
@@ -469,12 +510,16 @@ components:
 
     Palette:
       type: object
-      required: [id, colors]
+      required: [id, colors, names]
       properties:
         id: { type: string }
         colors:
           type: array
           description: Hex colors. A cell's byte is an index into this list.
+          items: { type: string }
+        names:
+          type: array
+          description: One name per color, the words the bot accepts (red, darkblue)
           items: { type: string }
 
     Canvas:
@@ -641,14 +686,52 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Timelapse" }
 
-    WebhookPlacePixelRequest:
+    BotPlatform:
+      type: string
+      enum: [telegram]
+
+    BotLinkCode:
       type: object
-      required: [userId, x, y, color]
+      required: [code, expiresAt]
       properties:
-        userId: { type: string, format: uuid, description: The member placing the pixel }
+        code: { type: string, description: "8 characters, shown as K7QM-2PXD" }
+        expiresAt: { type: string, format: date-time }
+
+    BotLinkRequest:
+      type: object
+      required: [platform, platformUserId, code]
+      properties:
+        platform: { $ref: "#/components/schemas/BotPlatform" }
+        platformUserId: { type: string, description: The chat platform's user id }
+        code: { type: string }
+
+    BotLinked:
+      type: object
+      required: [displayName, canvasName]
+      properties:
+        displayName: { type: string }
+        canvasName: { type: string }
+
+    BotPlaceRequest:
+      type: object
+      required: [platform, platformUserId, x, y, color]
+      properties:
+        platform: { $ref: "#/components/schemas/BotPlatform" }
+        platformUserId: { type: string }
         x: { type: integer }
         y: { type: integer }
-        color: { type: integer, description: Index into the canvas palette }
+        color: { type: string, description: "A colour name from the palette (red) or its index (5)" }
+
+    BotPlacedPixel:
+      type: object
+      required: [pixelId, x, y, color, colorName, nextPlaceAt]
+      properties:
+        pixelId: { type: integer, format: int64 }
+        x: { type: integer }
+        y: { type: integer }
+        color: { type: integer }
+        colorName: { type: string }
+        nextPlaceAt: { type: string, format: date-time }
 
     TemplateList:
       type: object

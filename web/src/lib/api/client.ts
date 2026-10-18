@@ -191,3 +191,14 @@ export const timelapsesApi = {
     return data;
   },
 };
+
+export const botApi = {
+  // A one-time code for "/link CODE" in Telegram, valid 10 minutes; /place then draws on this canvas.
+  async linkCode(spaceId: string, canvasId: string): Promise<{ code: string; expiresAt: string }> {
+    const { data, error, response } = await client.POST("/spaces/{spaceId}/canvases/{canvasId}/bot-link-code", {
+      params: { path: { spaceId, canvasId } },
+    });
+    if (error) fail(response, error);
+    return data;
+  },
+};
