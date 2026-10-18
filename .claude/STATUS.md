@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-17 (evening).** Update this file at the end of every session.
+**Updated 2026-10-18.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -19,8 +19,9 @@
 | 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
 | 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
 | 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. The live thumbnail check was skipped by the owner (tested locally) | 012 |
-| 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). **Cleanup still a dry run** (first count: 2,702 old tickets) | 013 |
+| 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). Out of dry run since PR #23 (2026-10-18); the dry run counted 2,702 old tickets. **First real run 2026-10-18 20:00 UTC, still to read** | 013 |
 | 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. Cross-copy test passed live (10 sockets split 5/5, one pixel, every socket got it once) | 014 |
+| 15 | Telegram bot as a Railway Function (`bot`, Bun, `functions/webhook/index.ts`): `/link CODE` with a one-time code from the canvas page, `/place X Y COLOUR` through the API with the web's cooldown, `source = 'bot'`. Live test with fake updates passed 2026-10-18; no real Telegram bot connected yet (runbook) | 015 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -29,10 +30,10 @@
 
 ## Next
 
-1. **Step 13:** after tonight's dry run (20:00 UTC), read its counts; then a one-line pull request
-   drops `-dry-run` from `cleanup`'s start command. Then tick Step 13
-2. **Step 15** (task 015 to write): the Railway Function for a Discord or Telegram `/place`, with
-   bot account linking (`bot_links`, `link_codes`)
+1. **Step 13:** read the first real cleanup (2026-10-18 20:00 UTC): about 2,702 tickets deleted,
+   healthchecks.io green. Then tick Step 13
+2. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
+3. **Step 16** (task 016 to write)
 
 **Merge away from :50–:05 UTC, every time.** Each merge redeploys every service, the cron ones
 included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
@@ -49,14 +50,15 @@ How changes reach production now: branch → pull request → CI's four checks (
 - **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Backups:** check healthchecks.io now and then (green = last night's backup arrived). Railway's own Backups tab is Pro only. The template images are not backed up (decision in task 009). R2 still holds the laptop test dump `postgres/2026/10/15/153956-rail_canvas` (fake data); it expires on its own, or delete it
 - **Redis** holds copies only. `railway restart --service Redis` works but the CLI call does not return; use the dashboard. Redis keeps its data on its own volume across restarts (the template's)
-- **`ws_tickets` keeps every used ticket** (2,702 rows on 2026-10-17). Since Step 11 new tickets go to Redis; the cleanup empties the table once it is out of dry run
+- **`ws_tickets` keeps every used ticket** (2,702 rows on 2026-10-17). Since Step 11 new tickets go to Redis; the first real cleanup (2026-10-18 20:00 UTC) should empty it
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
 ## Not in git (lives on the owner's laptop)
 
-- `rail-canvas/.env`: `MIGRATE_DATABASE_URL` (postgres, public proxy), `APP_DB_PASSWORD`, `DATABASE_URL` (app role, public proxy, for local runs), `OWNER_PASSWORD`, plus leftover `DEV_SPACE_ID` (ignored)
+- `rail-canvas/.env`: `MIGRATE_DATABASE_URL` (postgres, public proxy), `APP_DB_PASSWORD`, `DATABASE_URL` (app role, public proxy, for local runs), `OWNER_PASSWORD`, `TELEGRAM_SECRET_TOKEN`, plus leftover `DEV_SPACE_ID` (ignored)
 - `rail-canvas/web/.env.local`: `VITE_API_URL=http://localhost:8080`
 - Railway variable values on `api` (names are in `.railway/railway.ts`): `APP_DB_PASSWORD`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` (references), `CORS_ORIGINS`, `WEBHOOK_SECRET` (copy in Passwords, "rail-canvas webhook secret"; Step 15's Function needs it). `preserve()` keeps a value but never creates one: a new secret variable is added by hand in the dashboard
+- `bot` (Railway Function): public domain `bot-production-2161.up.railway.app` (generated in the dashboard); `TELEGRAM_SECRET_TOKEN` (copy in Passwords, "rail-canvas telegram secret", and in local `.env`). Its `WEBHOOK_SECRET` is a reference to `api`'s
 - GitHub secret `RAILWAY_TOKEN`: Railway project token `github-iac`, `production`
 - `backup` variable values on Railway: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HC_PING_URL` (copies in the owner's Passwords app, "rail-canvas R2 backup" and "rail-canvas healthchecks")
 - Cloudflare: R2 bucket `rail-canvas-backups` (30-day lifecycle rule) and its Account API token "rail-canvas backup"; a card is on file for R2, usage stays in the free tier
