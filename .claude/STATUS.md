@@ -33,9 +33,8 @@
 
 ## Next
 
-1. **Release** the load test code (PR `staging` → `main`; production gets no change but the seed's player option)
-2. **Step 18** (task 018 to write): the README, architecture diagram, Usage page numbers, what was learned
-3. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
+1. **Step 18** (task 018 to write): the README, architecture diagram, Usage page numbers, what was learned
+2. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
 
 **Release away from :50–:05 UTC, every time.** Each merge into `main` redeploys every production
 service, the cron ones included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
