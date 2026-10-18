@@ -6,6 +6,22 @@ full CI on `main` kept, none on pull requests).
 Approved 2026-10-18. Setup built and shown locally (below); waiting for the owner's OK to push
 `staging`.**
 
+## Live on staging (2026-10-18, 14:47 UTC)
+
+Staging at `https://api-staging-9e8a.up.railway.app`, commit `19acdb7`. The first deploy with the
+passwords: `app-login: app can log in now`, `seed: created space staging-club`; later deploys:
+unchanged, nothing to do, `bucket-cors: allowed https://staging.rail-canvas.pages.dev,
+http://localhost:5173`. The staging tests from the laptop against it: all four pass (WebSocket and
+board, cooldown 429, bot link code, template through `templates-staging` and back). Worker and
+crons deployed. Production's `/health` unchanged, its plan "already up to date".
+
+Staging's passwords were made by me (the owner's call: fake data) and put in place without being
+printed: `APP_DB_PASSWORD`, `SEED_OWNER_PASSWORD` on staging's `api`, the GitHub secret
+`STAGING_OWNER_PASSWORD`, `SEED_OWNER_PASSWORD` in the owner's `.env`. The domain and the
+repository variable `STAGING_URL` were set from the CLI. Staging's databases and bucket have their
+own names (`Postgres-staging`, `Redis-staging`, `templates-staging`): service and bucket names are
+project-wide.
+
 ## Local run (2026-10-18)
 
 - **Staging's first deploys, simulated** on an empty Postgres 18 (OrbStack): `cli predeploy` ran all
