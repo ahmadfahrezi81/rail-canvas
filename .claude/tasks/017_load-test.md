@@ -1,8 +1,45 @@
 # Task 017 — A k6 load test from the laptop against staging: what 100 players need, and what they cost
 
-**Status: approved 2026-10-18 after two sanity checks. Built and tried locally (3 players against a
-local API: 54 pixels, 0 errors, p95 30 ms, placed-to-seen p95 35 ms; production's URL and 101
-players refused).**
+**Status: done 2026-10-18. 100 players pass with room to spare; they cost about \$0.05 an hour, almost
+all of it egress (the fan-out).**
+
+## Results (2026-10-18, 16:35–16:53 UTC)
+
+k6 2.3.0 from the laptop (Indonesia) against staging (Singapore, two API copies). Each run: 1 min
+ramp-up, 2 min held, 10 s down; a fresh canvas with a 2 s cooldown; every player a real session.
+
+| Players | Requests/s | Pixels | HTTP p95 | HTTP p99 | Placed→seen p95 | Errors | API CPU avg (peak) | API memory | Egress | Run cost | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 10 | 4.5 | 526 | 75 ms | 96 ms | 71 ms | 0 | 0.01 vCPU | 19 MB | ~2 MB | ~\$0.0002 | PASS |
+| 25 | 11.0 | 1,259 | 122 ms | 210 ms | 133 ms | 0 | 0.03 vCPU | 26 MB | ~7 MB | ~\$0.0005 | PASS |
+| 50 | 22.5 | 2,602 | 119 ms | 183 ms | 127 ms | 0 | 0.05 vCPU | 33 MB | ~17 MB | ~\$0.001 | PASS |
+| 100 | 44.7 | 5,114 | 162 ms | 289 ms | 241 ms | 0 | 0.11 vCPU (0.20) | 38 MB (57) | ~53 MB | ~\$0.003 | PASS |
+
+Every run: no dropped sockets (`ws_dropped_slow=0`), no Redis errors, the database pool never
+saturated (`db_in_use` back to 0 between stats lines; `db_waited_total` rose by a handful over all
+runs), both API copies shared the pixels (`bus_published` and `bus_received` about equal on each).
+Postgres-staging peaked at 0.05 vCPU and 89 MB, Redis at 0.01 vCPU and 13 MB. The whole session's
+Railway usage, staging included, went from \$0.4306 to \$0.4451 (`railway usage`): **all four runs
+together cost under one cent.**
+
+### What it means (the data point for the next project)
+
+- **100 players at once: comfortable.** The slowest 1 in 100 requests took under 0.3 s, including
+  the trip from Indonesia; the API used 0.2 vCPU at its peak out of 8 available
+- **Cost of 100 players for an hour ≈ \$0.05**: API CPU about \$0.003, Postgres about \$0.0015,
+  egress about 0.9 GB ≈ \$0.045. **Egress is ~90% of it**, and it grows with players × players (every
+  pixel goes to every player): 200 players ≈ 4× the egress, ≈ \$0.19 an hour; 1,000 players ≈ 100×,
+  ≈ \$4.50 an hour, long before CPU matters
+- **The first thing to run out past 100 is not the server but the fan-out**: per-player
+  bandwidth and, on Railway, the egress bill. The fix at that size would be sending batched or
+  region-limited updates, not a bigger server
+- **Latency grew gently** (p95 75 → 162 ms from 10 to 100 players); the part above ~60 ms is the
+  internet between the laptop and Singapore, which real players pay too
+
+How the costs were measured: `railway metrics --since --until` per run (CPU and memory averages,
+egress as the per-minute average × minutes, so an estimate), Railway's prices (vCPU \$20/month,
+memory \$10/GB-month, egress \$0.05/GB), cross-checked against `railway usage` over the session.
+
 
 Plan: [Rail Canvas, Step 17](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9) and its
 "Load test" section (the 2026-10-04 draft: real-player flows, ramp slowly, pass or fail written down
