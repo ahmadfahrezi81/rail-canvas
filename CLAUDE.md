@@ -73,13 +73,14 @@ Learning is the point. The structure matters more than the feature list.
 │       └── components/       # use hooks, never the client
 ├── Dockerfile                # one image, every binary under /app/
 ├── ops/backup/               # nightly pg_dump to R2 (cron service "backup"), and restore.sh
+├── functions/webhook/        # the Telegram bot: a Railway Function (Bun, one file, no packages) and its bun tests
 ├── .railway/railway.ts       # Railway project as code: services, settings, variables
 ├── package.json              # only the Railway SDK, so .railway/railway.ts can import it
 ├── .github/workflows/ci.yml  # CI: api, contract, web, docker
 └── .claude/tasks/            # one plan per step
 ```
 
-Planned, created by the step that needs it: `ops/loadtest/` (Step 17), `functions/webhook/` (Step 15). The full tree is in Notion under "Repo and conventions".
+`functions/webhook/` is the Telegram bot, a Railway Function (Step 15). Planned: `ops/loadtest/` (Step 17). The full tree is in Notion under "Repo and conventions".
 
 ---
 
@@ -157,10 +158,16 @@ Joining later: timeout and body size limit.
 - **`service.ObjectStore` is the bucket's interface**; `platform.Bucket` is the real one, tests use a fake. Without `S3_*` the API runs and the template endpoints answer 503.
 - **Bucket CORS** is set from `CORS_ORIGINS` by `cli bucket-cors`. Railway's buckets do not match wildcard origins, so Pages preview sites cannot upload.
 
-## Snapshots and the webhook
+## Snapshots
 
 - **Hourly snapshots** (`Snapshots.Pass`, run by the worker; see Cron services): every canvas that changed since its last snapshot becomes a PNG, one pixel per cell, at `spaces/{s}/snapshots/{c}/{hour}.png` in the templates bucket, with a `snapshots` row. One transaction per canvas reads the cells with their `pixel_id`, claims the row (`UNIQUE (canvas_id, taken_at)`: a pass run twice makes one), uploads, commits; a failed upload leaves no row.
-- **`POST /webhooks/spaces/{s}/canvases/{c}/pixels` is for our own programs, not browsers.** `X-Webhook-Secret` is compared with `WEBHOOK_SECRET` by SHA-256 in constant time; the caller names the user, who must be an active member and waits out the cooldown (`Pixels.PlaceAs`, `source = 'bot'`). Step 15 replaces the named user with a linked bot account.
+## The bot (Telegram, a Railway Function)
+
+- **`functions/webhook/index.ts` is the Railway Function `bot`**: Bun, one file, no packages (`fn()` in `.railway/railway.ts` embeds it in the start command, at most about 98 KB). It checks Telegram's `X-Telegram-Bot-Api-Secret-Token` in constant time before reading anything (401), understands `/link`, `/place`, `/help`, calls the API at `http://rail-canvas.railway.internal:8080` with `X-Webhook-Secret`, and **always answers Telegram 200**, with the reply as a `sendMessage` in its own response (no bot token anywhere). Private chats only
+- **The API never trusts the chat account alone.** A member makes a one-time code on a canvas page (`POST …/bot-link-code`, 8 characters, 10 minutes, SHA-256 only); `/link CODE` redeems it in one `UPDATE … WHERE used_at IS NULL` and writes `bot_links` (one Telegram account → one user and canvas; linking again replaces). `/webhooks/bot/pixels` looks the account up and places with `Pixels.PlaceAs`: active user, still a member, the same cooldown as the web, `source = 'bot'`, live to every copy
+- **`/webhooks/bot/*` is for our Function, not browsers.** `X-Webhook-Secret` is compared with `WEBHOOK_SECRET` by SHA-256 in constant time; `/link` is rate limited per Telegram account
+- **Colour names live in the palette** (`Palette.Names`, `Palette.Color`): the bot sends a word or an index, the API resolves it
+- **Test the Function in Railway's own image**, as CI does: `docker run --rm -v "$PWD/functions/webhook:/src:ro" -w /src --entrypoint bun ghcr.io/railwayapp/function-bun:1.4.0 test`. The server starts only under `import.meta.main`, so tests import `handle` with a fake API
 
 ## Redis
 
@@ -243,6 +250,7 @@ Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/he
 - **Never edit a declared setting in the dashboard.** The next apply fails (the environment changed since the plan); put the change in the file instead.
 - **Nothing is deleted by CI.** Removing a resource from the file deletes it on apply, so the apply runs with `confirm-destructive: false`: a plan that deletes anything fails. Postgres stays declared. Deletes are done by hand, with the owner.
 - **A plan is only valid for the project as it was.** Any dashboard change after the plan (even pasting a `preserve()` variable's value) makes the apply fail with "The environment changed since this plan was computed". Paste values first, then plan; if it happens, open a new pull request for a fresh plan.
+- **A Function's code is part of the plan**, so `functions/**` triggers the plan and apply workflows like `.railway/**`. It deploys on apply, with no Wait for CI (no repository); CI has tested it on the pull request.
 - **Railway drops `checkSuites` when it creates a service.** A new service needs a second pull request to apply Wait for CI.
 - **Variables are managed by the file, values are not in it.** `preserve()` keeps the value Railway holds. Never `railway config pull --include-variables`.
 - **Locally:** `railway config plan` (read-only) to preview; `apply` only through the pull request.

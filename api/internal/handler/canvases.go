@@ -89,7 +89,7 @@ func toAPICanvas(c service.Canvas) apigen.Canvas {
 		Name:            c.Name,
 		Width:           c.Width,
 		Height:          c.Height,
-		Palette:         apigen.Palette{Id: c.Palette.ID, Colors: c.Palette.Colors},
+		Palette:         apigen.Palette{Id: c.Palette.ID, Colors: c.Palette.Colors, Names: c.Palette.Names},
 		CooldownSeconds: c.CooldownSeconds,
 		CreatedAt:       c.CreatedAt,
 	}

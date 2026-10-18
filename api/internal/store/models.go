@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BotLink struct {
+	Platform       string
+	PlatformUserID string
+	UserID         uuid.UUID
+	SpaceID        uuid.UUID
+	CanvasID       uuid.UUID
+	LinkedAt       time.Time
+}
+
 type Canvas struct {
 	ID              uuid.UUID
 	SpaceID         uuid.UUID
@@ -39,6 +48,15 @@ type Invite struct {
 	CreatedBy uuid.UUID
 	ExpiresAt time.Time
 	UsedBy    uuid.NullUUID
+	UsedAt    *time.Time
+}
+
+type LinkCode struct {
+	CodeHash  []byte
+	UserID    uuid.UUID
+	SpaceID   uuid.UUID
+	CanvasID  uuid.UUID
+	ExpiresAt time.Time
 	UsedAt    *time.Time
 }
 

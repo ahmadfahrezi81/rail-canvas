@@ -5,6 +5,7 @@ import { usePlacePixel } from "../lib/hooks/usePlacePixel";
 import { useTemplates } from "../lib/hooks/useTemplates";
 import { useTimelapses } from "../lib/hooks/useTimelapses";
 import { Board, type BoardHandle } from "./Board";
+import { LinkTelegram } from "./LinkTelegram";
 import { Palette } from "./Palette";
 import { Templates } from "./Templates";
 import { Timelapses } from "./Timelapses";
@@ -90,6 +91,7 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
       {lapses.timelapses && !lapses.unavailable && (
         <Timelapses timelapses={lapses.timelapses} onCreate={lapses.create} />
       )}
+      <LinkTelegram key={canvas.id} spaceId={spaceId} canvasId={canvas.id} />
     </>
   );
 }

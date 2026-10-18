@@ -1,4 +1,4 @@
-import { bucket, defineRailway, github, postgres, preserve, project, redis, ref, service, volume } from "railway/iac";
+import { bucket, defineRailway, fn, github, postgres, preserve, project, redis, ref, service, volume } from "railway/iac";
 
 // Production, as code. Pulled from Railway 2026-10-14; change settings here, not in the dashboard.
 export default defineRailway(() => {
@@ -92,6 +92,21 @@ export default defineRailway(() => {
     },
   });
 
+  // The Telegram bot (Step 15): a Railway Function, its code embedded from the file (no repository,
+  // so no Wait for CI; CI tests it before the merge). Telegram reaches it on its public domain,
+  // generated in the dashboard; it reaches the API only over the private network.
+  const bot = fn("bot", {
+    codeFile: "../functions/webhook/index.ts",
+    runtime: "bun",
+    replicas: { "asia-southeast1-eqsg3a": 1 },
+    env: {
+      API_URL: "http://rail-canvas.railway.internal:8080",
+      WEBHOOK_SECRET: api.env.WEBHOOK_SECRET,
+      // Telegram sends it back on every update. Set by the owner.
+      TELEGRAM_SECRET_TOKEN: preserve(),
+    },
+  });
+
   // Nightly pg_dump to Cloudflare R2 (Step 9): a cron service that runs, uploads and exits.
   // 19:00 UTC is 03:00 in Singapore. A failed night is reported by healthchecks.io, not retried.
   const backup = service("backup", {
@@ -113,6 +128,6 @@ export default defineRailway(() => {
 
   return project("rail-canvas", {
     variables: { managed: true },
-    resources: [Postgres, api, postgresVolume, templates, backup, Redis, worker, snapshot, cleanup],
+    resources: [Postgres, api, postgresVolume, templates, backup, Redis, worker, snapshot, cleanup, bot],
   });
 });

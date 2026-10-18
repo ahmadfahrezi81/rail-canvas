@@ -48,6 +48,23 @@ Keep each section short enough to follow at 2 a.m.; fix it here when reality dif
   back. Files deleted from the `templates` bucket (old timelapse GIFs, unfinished uploads) are
   gone; a timelapse can be made again
 
+## The Telegram bot
+
+- **What runs:** the Railway Function `bot` (`functions/webhook/index.ts`, Bun). Telegram posts
+  each update to its public domain; it checks `X-Telegram-Bot-Api-Secret-Token`, calls the API's
+  `/webhooks/bot/…` over the private network and replies inside its response. Good: one
+  `{"msg":"place","status":201}` line per placement in `bot`'s log, `source = 'bot'` on the pixel
+- **There is no real bot yet** (Step 15 was tested with fake updates). To make one: in Telegram,
+  @BotFather → `/newbot` → a name, and keep the token it gives in Passwords ("rail-canvas
+  telegram bot"); then register the Function once, from the laptop:
+  `curl -s "https://api.telegram.org/bot<TOKEN>/setWebhook" -d url=https://<bot domain>/ -d secret_token=<TELEGRAM_SECRET_TOKEN> -d 'allowed_updates=["message"]'`.
+  The token is needed only for that call (and `deleteWebhook`); it is never put in Railway
+- **Send a fake update** (what the live test does): a POST to the domain with the header
+  `X-Telegram-Bot-Api-Secret-Token` and a JSON body
+  `{"update_id":1,"message":{"text":"/help","from":{"id":1},"chat":{"id":1,"type":"private"}}}`.
+  Without the header: 401
+- **A player's link:** `bot_links` (one row per Telegram account). Unlink by deleting the row
+
 ## Reach the database from the laptop (temporarily)
 
 The database has no public address on purpose. A restore or a role change from the laptop
@@ -135,6 +152,9 @@ one, switch to it, check, **then** delete the old one.
 | `app` password | `api` variable `APP_DB_PASSWORD`, inside `DATABASE_URL` | Open the database (section above). `ALTER ROLE app WITH PASSWORD '…'` as `postgres`, then the same value in `APP_DB_PASSWORD`; the API redeploys with it. A few seconds of errors in between |
 | `postgres` password | the `Postgres` service; referenced by `api` (`MIGRATE_DATABASE_URL`) and `backup` | Railway → `Postgres` → its credentials / Variables (Railway updates the user and the references together where it offers that). Then redeploy `api` and run a backup to prove both still connect |
 | Template bucket keys | the `templates` bucket, referenced by `api` (`S3_*`) | Railway → `templates` → Credentials → reset, if offered. The references update; redeploy `api` and upload a template to check |
+| `TELEGRAM_SECRET_TOKEN` | `bot` variable, and the owner's local `.env` | `openssl rand -hex 32`, paste into `bot`'s variable (it redeploys) and `.env`. With a real bot, call `setWebhook` again with the new `secret_token` (above). Saved in Passwords, "rail-canvas telegram secret" |
+| `WEBHOOK_SECRET` | `api` variable; `bot` references it | `openssl rand -hex 32`, paste into `api`'s variable. Both redeploy; a few seconds of "try again" replies in between |
+| Telegram bot token | Passwords only (no bot yet) | @BotFather → `/revoke`, then `setWebhook` again with the new token |
 | A user's password | `users.password_hash` | No endpoint yet. Sessions can be revoked in the database (`UPDATE sessions SET revoked_at = now() WHERE user_id = …`) |
 
 Never put a secret in git, in `.env.example`, in a chat or in a screenshot.

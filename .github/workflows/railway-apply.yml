@@ -4,7 +4,7 @@ name: Railway apply
 on:
   push:
     branches: [main]
-    paths: [".railway/**"]
+    paths: [".railway/**", "functions/**"]
 
 permissions:
   contents: read
