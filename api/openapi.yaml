@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.8.0
+  version: 0.9.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -549,6 +549,10 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 64 }
         cooldownSeconds: { type: integer, minimum: 1, maximum: 3600, description: "Default 10" }
+        palette:
+          type: string
+          enum: [classic16, place32]
+          description: "Default classic16 (r/place 2017, 16 colours); place32 is r/place 2022's 32. Fixed for the canvas's life"
 
     PlacePixelRequest:
       type: object

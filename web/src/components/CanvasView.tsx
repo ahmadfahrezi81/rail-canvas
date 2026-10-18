@@ -63,7 +63,7 @@ export function CanvasView({ spaceId, canvas }: { spaceId: string; canvas: Canva
       ) : (
         <div className="board-placeholder" />
       )}
-      <Palette colors={canvas.palette.colors} selected={color} onSelect={setColor} />
+      <Palette colors={canvas.palette.colors} names={canvas.palette.names} selected={color} onSelect={setColor} />
       <p className="status-line">
         <span className={`dot dot-${status}`} title={status} />
         <span>{status === "live" ? "Live" : status === "connecting" ? "Connecting…" : "Reconnecting…"}</span>

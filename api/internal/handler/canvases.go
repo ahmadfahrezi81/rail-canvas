@@ -53,7 +53,14 @@ func (s *Server) CreateCanvas(ctx context.Context, req apigen.CreateCanvasReques
 	if cooldown < 1 || cooldown > 3600 {
 		return apigen.CreateCanvas400JSONResponse{Error: "cooldown must be 1 to 3600 seconds"}, nil
 	}
-	c, err := s.canvases.Create(ctx, req.SpaceId, user.ID, name, cooldown)
+	palette := service.DefaultPalette
+	if req.Body.Palette != nil {
+		palette = string(*req.Body.Palette)
+	}
+	c, err := s.canvases.CreateWithPalette(ctx, req.SpaceId, user.ID, name, cooldown, palette)
+	if errors.Is(err, service.ErrUnknownPalette) {
+		return apigen.CreateCanvas400JSONResponse{Error: "unknown palette"}, nil
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -32,6 +32,24 @@ func (e BotPlatform) Valid() bool {
 	}
 }
 
+// Defines values for CreateCanvasRequestPalette.
+const (
+	Classic16 CreateCanvasRequestPalette = "classic16"
+	Place32   CreateCanvasRequestPalette = "place32"
+)
+
+// Valid indicates whether the value is a known member of the CreateCanvasRequestPalette enum.
+func (e CreateCanvasRequestPalette) Valid() bool {
+	switch e {
+	case Classic16:
+		return true
+	case Place32:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTemplateRequestContentType.
 const (
 	Imagepng CreateTemplateRequestContentType = "image/png"
@@ -207,7 +225,13 @@ type CreateCanvasRequest struct {
 	// CooldownSeconds Default 10
 	CooldownSeconds *int   `json:"cooldownSeconds,omitempty"`
 	Name            string `json:"name"`
+
+	// Palette Default classic16 (r/place 2017, 16 colours); place32 is r/place 2022's 32. Fixed for the canvas's life
+	Palette *CreateCanvasRequestPalette `json:"palette,omitempty"`
 }
+
+// CreateCanvasRequestPalette Default classic16 (r/place 2017, 16 colours); place32 is r/place 2022's 32. Fixed for the canvas's life
+type CreateCanvasRequestPalette string
 
 // CreateTemplateRequest defines model for CreateTemplateRequest.
 type CreateTemplateRequest struct {

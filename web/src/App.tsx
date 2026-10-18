@@ -46,7 +46,7 @@ function Workspace({ session }: { session: ReturnType<typeof useSession> }) {
                 canvases={canvases}
                 selectedId={canvas?.id}
                 onSelect={setSelectedId}
-                onCreate={async (name) => setSelectedId((await create(name)).id)}
+                onCreate={async (name, palette) => setSelectedId((await create(name, palette)).id)}
               />
             )}
           </aside>
