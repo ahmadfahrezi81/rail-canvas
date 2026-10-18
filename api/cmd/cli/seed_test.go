@@ -110,4 +110,19 @@ func TestFreshDatabase(t *testing.T) {
 	if _, _, err := service.NewAuth(pool).Login(ctx, service.SeedOwnerEmail, "staging-owner-pw"); err != nil {
 		t.Errorf("seeded owner cannot log in: %v", err)
 	}
+
+	if made, err := service.SeedPlayers(ctx, pool, 3, "staging-owner-pw"); err != nil || made != 3 {
+		t.Fatalf("players: made %d, err %v; want 3", made, err)
+	}
+	if made, err := service.SeedPlayers(ctx, pool, 3, "staging-owner-pw"); err != nil || made != 0 {
+		t.Fatalf("players again: made %d, err %v; want 0", made, err)
+	}
+	if _, _, err := service.NewAuth(pool).Login(ctx, "player-003@example.com", "staging-owner-pw"); err != nil {
+		t.Errorf("player-003 cannot log in: %v", err)
+	}
+	var members int
+	_ = other.QueryRow(ctx, "SELECT count(*) FROM space_members").Scan(&members)
+	if members != 4 {
+		t.Errorf("%d members, want the owner and 3 players", members)
+	}
 }

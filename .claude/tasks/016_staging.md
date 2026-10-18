@@ -1,10 +1,8 @@
 # Task 016 — A staging environment that every change passes before production, with a new palette as the first release
 
-**Status: draft 2026-10-18, revised and sanity-checked the same day with the owner's answers (all work on the
-`staging` branch, staging before production, no PR environment; cost is not a concern; the palette is my pick;
-full CI on `main` kept, none on pull requests).
-Approved 2026-10-18. Setup built and shown locally (below); waiting for the owner's OK to push
-`staging`.**
+**Status: approved 2026-10-18 (all work on a local branch, merged into `staging`, pushed with the
+owner's OK; staging before production; no PR environment). Live 2026-10-18: setup released in PR #26,
+the palette in PR #27 (the first release whose `staging` status came from `staging-tests.yml`).**
 
 ## The palette (2026-10-18)
 

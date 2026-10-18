@@ -5,3 +5,7 @@ api/bin/
 node_modules/
 dist/
 .DS_Store
+
+# Load test: the players' session tokens and each run's raw numbers
+ops/loadtest/.tokens.json
+ops/loadtest/results/
