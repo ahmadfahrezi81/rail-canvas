@@ -1,6 +1,8 @@
 # Task 013 — Cron services: the hourly snapshot leaves the API, and a nightly cleanup
 
-**Status: approved 2026-10-17 after a sanity check (pixels deleted per canvas, so the delete uses the `(canvas_id, placed_at)` index; timelapse rule spelled out; merge away from a full hour). Built, shown locally, pull request open.**
+**Status: approved 2026-10-17 after a sanity check (pixels deleted per canvas, so the delete uses the `(canvas_id, placed_at)` index; timelapse rule spelled out; merge away from a full hour). Built, shown locally, live.**
+
+**Live dry run (2026-10-17, 20:02 UTC):** `sessions=0 tickets=2702 invites=0 pixels=0 timelapses=0 templates=0`, 76 ms. The tickets are the `ws_tickets` fallback rows; nothing else is old enough yet. Snapshot cron ran every hour overnight, each followed by the worker's `job done type="snapshots:pass"`. `-dry-run` dropped on 2026-10-18.
 
 ## Local run (2026-10-17)
 
