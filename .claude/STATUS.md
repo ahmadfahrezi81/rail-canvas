@@ -19,7 +19,7 @@
 | 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
 | 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
 | 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. The live thumbnail check was skipped by the owner (tested locally) | 012 |
-| 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). Out of dry run since PR #23 (2026-10-18); the dry run counted 2,702 old tickets. **First real run 2026-10-18 20:00 UTC, still to read** | 013 |
+| 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). Out of dry run since PR #23. First real run 2026-10-18 15:52 UTC (Run now in the dashboard): deleted 2,702 old tickets, nothing else, 82 ms | 013 |
 | 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. Cross-copy test passed live (10 sockets split 5/5, one pixel, every socket got it once) | 014 |
 | 15 | Telegram bot as a Railway Function (`bot`, Bun, `functions/webhook/index.ts`): `/link CODE` with a one-time code from the canvas page, `/place X Y COLOUR` through the API with the web's cooldown, `source = 'bot'`. Live test with fake updates passed 2026-10-18; no real Telegram bot connected yet (runbook) | 015 |
 | 16 | `staging` environment before production: branch `staging` → staging (`Postgres-staging`, `Redis-staging`, `templates-staging`, seeded `staging-club`), release PR `staging` → `main` (merge commit; CI + `staging` status from `staging-tests.yml` required). `/health` reports the commit. Palette `place32` shipped through it. PR environment skipped | 016 |
@@ -32,10 +32,8 @@
 
 ## Next
 
-1. **Step 13:** read the first real cleanup (2026-10-18 20:00 UTC): about 2,702 tickets deleted,
-   healthchecks.io green. Then tick Step 13
-2. **Step 17** (task 017 to write): the k6 load test against staging (raise staging's login limits first)
-3. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
+1. **Step 17** (task 017 to write): the k6 load test against staging (raise staging's login limits first)
+2. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
 
 **Release away from :50–:05 UTC, every time.** Each merge into `main` redeploys every production
 service, the cron ones included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
@@ -55,7 +53,7 @@ to `.railway/` gets production's plan on the release PR. After a release, merge 
 - **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Backups:** check healthchecks.io now and then (green = last night's backup arrived). Railway's own Backups tab is Pro only. The template images are not backed up (decision in task 009). R2 still holds the laptop test dump `postgres/2026/10/15/153956-rail_canvas` (fake data); it expires on its own, or delete it
 - **Redis** holds copies only. `railway restart --service Redis` works but the CLI call does not return; use the dashboard. Redis keeps its data on its own volume across restarts (the template's)
-- **`ws_tickets` keeps every used ticket** (2,702 rows on 2026-10-17). Since Step 11 new tickets go to Redis; the first real cleanup (2026-10-18 20:00 UTC) should empty it
+- **`ws_tickets` keeps every used ticket** (2,702 rows on 2026-10-17). Since Step 11 new tickets go to Redis; emptied by the first real cleanup, 2026-10-18
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
 ## Not in git (lives on the owner's laptop)
