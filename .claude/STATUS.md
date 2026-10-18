@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-17 (late), end of session.** Update this file at the end of every session.
+**Updated 2026-10-17 (evening).** Update this file at the end of every session.
 
 ## Done and live
 
@@ -18,7 +18,9 @@
 | 9 | Nightly `pg_dump` to Cloudflare R2 (cron service `backup`, 19:00 UTC), healthchecks.io dead-man's switch, one real restore with matching row counts, `docs/runbook.md` | 009 |
 | 10 | Hourly canvas snapshots (a ticker inside the API, PNGs in the templates bucket, `GET …/snapshots`) and `POST /webhooks/…/pixels` with a shared secret (`WEBHOOK_SECRET`) | 010 |
 | 11 | Redis (private, 8.2): board cache with compare-and-set and single-flight rebuild, cooldown check, shared rate limits, WebSocket tickets; Postgres and memory as fallbacks, a 5-second circuit breaker; live restart drill passed | 011 |
-| 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. **Live; two checks left (see Next)** | 012 |
+| 12 | Worker service (`/app/worker`, asynq on Redis): template thumbnails, the hourly snapshot pass, timelapse GIFs; at most 3 retries with exponential backoff. The live thumbnail check was skipped by the owner (tested locally) | 012 |
+| 13 | Cron services: `snapshot` (hourly, queues the worker's pass; the API's timer is gone) and `cleanup` (20:00 UTC, healthchecks.io check `rail-canvas cleanup`). **Cleanup still a dry run** (first count: 2,702 old tickets) | 013 |
+| 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. Cross-copy test passed live (10 sockets split 5/5, one pixel, every socket got it once) | 014 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -27,20 +29,14 @@
 
 ## Next
 
-**Finish Step 12 (worker), merged and deployed 2026-10-17 (PR #16).** Done live: `worker started`,
-the `timelapses` migration, a timelapse of pixel-club's canvas built by the worker (2 frames,
-0.37 s), the API's stats line shows the queue (all zero). Still to check, then close the step
-(Notion tick, task 012 status, a docs PR):
+1. **Step 13:** after tonight's dry run (20:00 UTC), read its counts; then a one-line pull request
+   drops `-dry-run` from `cleanup`'s start command. Then tick Step 13
+2. **Step 15** (task 015 to write): the Railway Function for a Discord or Telegram `/place`, with
+   bot account linking (`bot_links`, `link_codes`)
 
-1. The worker's log shows `job done type="snapshots:pass"` at a full hour (and the API's log no
-   longer shows `msg=snapshots` passes, only `snapshots queued`)
-2. The owner uploads a template (PNG, at most 256 × 256 and 1 MB) and its thumbnail appears;
-   the worker's log shows `template:thumbnail`. The old checkerboard template has no thumbnail
-   (uploaded before the worker): expected
-
-Then **Step 13 — cron services** (task 013): the hourly snapshot timer moves out of the API into a
-cron service that queues `snapshots:pass`, plus a nightly cleanup (expired sessions, used
-tickets and codes, `ws_tickets`, pixel history past a retention window, old timelapses).
+**Merge away from :50–:05 UTC, every time.** Each merge redeploys every service, the cron ones
+included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
+had no snapshot because PR #21 was merged at 09:56).
 
 How changes reach production now: branch → pull request → CI's four checks (required by the
 `main` ruleset, squash merge only) → merge → Railway waits for CI → pre-deploy `cli predeploy`
@@ -53,8 +49,7 @@ How changes reach production now: branch → pull request → CI's four checks (
 - **Rollback on Railway restores the old deployment's settings too** (no pre-deploy step on a deployment from before 7b). Fine: a rollback must never need a migration.
 - **Backups:** check healthchecks.io now and then (green = last night's backup arrived). Railway's own Backups tab is Pro only. The template images are not backed up (decision in task 009). R2 still holds the laptop test dump `postgres/2026/10/15/153956-rail_canvas` (fake data); it expires on its own, or delete it
 - **Redis** holds copies only. `railway restart --service Redis` works but the CLI call does not return; use the dashboard. Redis keeps its data on its own volume across restarts (the template's)
-- **The snapshot ticker lives in the API process** (Step 10). It must move to a cron service (Step 13) before a second API replica (Step 14), or each replica snapshots
-- **`ws_tickets` keeps every used ticket** (2,544 rows on 2026-10-15). Since Step 11 new tickets go to Redis and expire by themselves; the table is only the fallback. Step 13's cleanup empties it
+- **`ws_tickets` keeps every used ticket** (2,702 rows on 2026-10-17). Since Step 11 new tickets go to Redis; the cleanup empties the table once it is out of dry run
 - **Step 17 (load test):** raise the per-IP login limit in staging first (note in task 004). The user-flow draft is in Notion under Load test.
 
 ## Not in git (lives on the owner's laptop)
@@ -65,7 +60,7 @@ How changes reach production now: branch → pull request → CI's four checks (
 - GitHub secret `RAILWAY_TOKEN`: Railway project token `github-iac`, `production`
 - `backup` variable values on Railway: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HC_PING_URL` (copies in the owner's Passwords app, "rail-canvas R2 backup" and "rail-canvas healthchecks")
 - Cloudflare: R2 bucket `rail-canvas-backups` (30-day lifecycle rule) and its Account API token "rail-canvas backup"; a card is on file for R2, usage stays in the free tier
-- healthchecks.io: free account, check `rail-canvas backup` (cron `0 19 * * *` UTC, grace 1 hour, email)
+- healthchecks.io: free account, checks `rail-canvas backup` (cron `0 19 * * *` UTC) and `rail-canvas cleanup` (cron `0 20 * * *` UTC), grace 1 hour, email. The cleanup's ping URL is on the `cleanup` service and in Passwords
 - GitHub ruleset `main` (made from a JSON import, not kept in git)
 - The laptop's Railway CLI login and link (`rail-canvas` / `production`)
 

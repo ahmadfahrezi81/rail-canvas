@@ -194,6 +194,7 @@ the API**: with two replicas it would fire twice.
 - **`snapshot`**, `0 * * * *`: `/app/cli snapshot` queues this hour's `snapshots:pass` for the worker; without Redis it takes the pass itself
 - **`cleanup`**, `0 20 * * *` (an hour after the backup): `/app/cli cleanup` (`service.Cleanup`) deletes expired sessions, tickets and invites, pixel history older than 30 days (never the board), timelapses beyond the newest 10 per canvas, and uploads that never completed. `-dry-run` only counts. A file is deleted before its row, so a failed file delete keeps the row for the next run; pixels go 5,000 per transaction, per canvas. healthchecks.io ping as for the backup (`HC_PING_URL`)
 - **A run must end on its own** (5 and 15 minute limits): Railway skips the next run while one is still going
+- **Merge away from :50–:05 UTC.** Every merge redeploys every service; a cron service mid-deploy at its scheduled time skips that run
 - **A new rule for a new table goes in `cleanup.go`** with a test on both sides of its line
 
 ## Logging

@@ -1,6 +1,10 @@
 # Task 014 — Two API replicas, with WebSocket messages passed between them through Redis pub/sub
 
-**Status: approved 2026-10-17 after a sanity check (a copy that failed to announce now asks the others to resync; the listener pings to find a dead connection; Railway's replica id; bus counters on the stats line). Built, shown locally, pull request open.**
+**Status: approved 2026-10-17 after a sanity check (a copy that failed to announce now asks the others to resync; the listener pings to find a dead connection; Railway's replica id; bus counters on the stats line). Live 2026-10-17 (PR #21).**
+
+## Live check (2026-10-17, 14:32 UTC)
+
+10 sockets on pixel-club's canvas (8 listening from the laptop as the owner, 2 owner tabs), split 5 and 5 across the copies `354b44b4` and `5bfeb31a`. The owner placed one pixel at (130, 130): all 8 test sockets received pixel 14 exactly once, in the same second. Stats lines: `354b` `bus_published=1`, `5bfe` `bus_received=1`, no resyncs.
 
 ## Local run (2026-10-17)
 
