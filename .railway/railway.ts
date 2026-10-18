@@ -6,11 +6,13 @@ export default defineRailway((ctx) => {
   const prod = ctx.isEnvironment("production");
   const branch = prod ? "main" : "staging";
   const repo = github("ahmadfahrezi81/rail-canvas", { branch, checkSuites: true });
-  const Postgres = postgres("Postgres", { region: "asia-southeast1-eqsg3a" });
-  Postgres.networking = { privateNetworkEndpoint: "postgres" };
+  // Service names are project-wide, so staging's databases (made in the dashboard) have their own.
+  const pgName = prod ? "Postgres" : "Postgres-staging";
+  const Postgres = postgres(pgName, { region: "asia-southeast1-eqsg3a" });
+  if (prod) Postgres.networking = { privateNetworkEndpoint: "postgres" };
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "asia-southeast1-eqsg3a", sizeMB: 5000 });
   // Board cache, cooldown, limits, tickets (Step 11). Private network only; holds nothing that cannot be rebuilt.
-  const Redis = redis("Redis", { region: "asia-southeast1-eqsg3a" });
+  const Redis = redis(prod ? "Redis" : "Redis-staging", { region: "asia-southeast1-eqsg3a" });
 
   // Template images (Step 8). Private; the API signs URLs. Region is fixed for good: Singapore, beside the API.
   const templates = bucket("templates", { region: "sin" });
@@ -38,7 +40,7 @@ export default defineRailway((ctx) => {
         : {
             // The exact preview address, not a wildcard: the bucket's CORS cannot match wildcards.
             CORS_ORIGINS: "https://staging.rail-canvas.pages.dev,http://localhost:5173",
-            DATABASE_URL: "postgresql://app:${{APP_DB_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}",
+            DATABASE_URL: `postgresql://app:\${{APP_DB_PASSWORD}}@\${{${pgName}.PGHOST}}:\${{${pgName}.PGPORT}}/\${{${pgName}.PGDATABASE}}`,
             MIGRATE_DATABASE_URL: Postgres.env.DATABASE_URL,
             // The fake data's owner, made by the pre-deploy seed. Set by the owner.
             SEED_OWNER_PASSWORD: preserve(),

@@ -25,9 +25,11 @@ Approved 2026-10-18. Setup built and shown locally (below); waiting for the owne
 - **The first push broke staging's databases** (2026-10-18, 13:49 UTC). The apply created Postgres
   with `POSTGRES_PASSWORD` set to the literal text `secret(32, "…")` (the generator never ran;
   its spaces broke every database URL: `unexpected spaces found in password`) and Redis with no
-  `REDIS_URL`. Builds passed; every service failed to start. Production untouched. Fix: the owner
-  deleted both in staging and synced Postgres and Redis from production in the dashboard; the file
-  manages everything else. Also learned: service names are project-wide (a database in staging is
+  `REDIS_URL`. Builds passed; every service failed to start. Production untouched. Fix, after a Sync that
+  brought the databases without their disks: staging was deleted and made again Empty, the owner
+  added `Postgres-staging` and `Redis-staging` with **+ New → Database**, and the file adopts them
+  by name (production keeps `Postgres` and `Redis`). The CLI cannot create a database in an
+  environment, only edit one that exists. Also learned: service names are project-wide (a database in staging is
   an instance of the same `Postgres` service), so a new one cannot be named `Postgres`. This cost
   the owner about 20 minutes; the rule is now in CLAUDE.md (Railway as code)
 
