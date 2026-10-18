@@ -22,6 +22,7 @@ type Config struct {
 	Bucket          *Bucket  // nil: no bucket, the template endpoints answer 503
 	WebhookSecret   string   // empty: the webhook answers 503
 	RedisURL        string   // empty: no Redis; everything runs on Postgres and memory, as before Step 11
+	Commit          string   // the deployed git commit (Railway sets it); empty locally
 }
 
 // Bucket is the templates bucket's S3_* variables (references set in .railway/railway.ts).
@@ -37,6 +38,7 @@ func Load() (Config, error) {
 		RealIPHeader:  getenv("REAL_IP_HEADER", "X-Real-IP"),
 		WebhookSecret: os.Getenv("WEBHOOK_SECRET"),
 		RedisURL:      os.Getenv("REDIS_URL"),
+		Commit:        os.Getenv("RAILWAY_GIT_COMMIT_SHA"),
 	}
 
 	if cfg.DatabaseURL == "" {

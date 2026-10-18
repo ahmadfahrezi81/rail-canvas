@@ -363,6 +363,8 @@ export interface components {
         Health: {
             status: string;
             env: string;
+            /** @description The deployed git commit; empty locally */
+            commit: string;
         };
         LoginRequest: {
             email: string;

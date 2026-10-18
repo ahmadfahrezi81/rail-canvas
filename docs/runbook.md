@@ -3,6 +3,7 @@
 What to do when something breaks. Written 2026-10-15, after the first real backup and restore.
 Keep each section short enough to follow at 2 a.m.; fix it here when reality differs.
 
+- [Staging and releases](#staging-and-releases)
 - [Backups: where they are, how to check them](#backups)
 - [Snapshots and the nightly cleanup](#snapshots-and-the-nightly-cleanup)
 - [Reach the database from the laptop (temporarily)](#reach-the-database-from-the-laptop-temporarily)
@@ -12,6 +13,28 @@ Keep each section short enough to follow at 2 a.m.; fix it here when reality dif
 - [Rotate a secret](#rotate-a-secret)
 
 ---
+
+## Staging and releases
+
+Two Railway environments: `staging` (branch `staging`, fake data, seeded owner
+`staging-owner@example.com`) and `production` (branch `main`). Staging has no `backup` and no `bot`.
+
+- **Release:** GitHub → pull request `staging` → `main`. It needs the four CI checks and the
+  `staging` status (the staging tests on that commit). Merge with **Create a merge commit**, away
+  from :50–:05 UTC. Then check production's `/health` shows the new `commit`
+- **The `staging` status is red:** open its run (the status links to it). "did not reach" means the
+  staging deploy failed or is slow: Railway → `staging` → `api` → Deployments. A failed test means
+  staging really is broken: fix on a branch, merge into `staging`, push. Never loosen `main`'s
+  ruleset to get a release through
+- **The staging tests by hand** (laptop): `cd api && STAGING_URL=https://… STAGING_OWNER_PASSWORD=…
+  go test -tags staging -count=1 -v ./stagingtest/`. They refuse production's URL
+- **Rebuild staging's data:** staging's database can be emptied freely (Railway → `staging` →
+  `Postgres` → delete its volume's data, or the service and a push to recreate it); the next
+  deploy migrates, sets `app`'s login and seeds again. Production is never touched by this
+- **Staging variables the owner holds:** `APP_DB_PASSWORD` and `SEED_OWNER_PASSWORD` on staging's
+  `api` (Passwords: "rail-canvas staging app db", "rail-canvas staging owner"); the owner's password
+  is also the GitHub secret `STAGING_OWNER_PASSWORD`, and staging's URL the repository variable
+  `STAGING_URL`
 
 ## Backups
 
@@ -149,6 +172,8 @@ one, switch to it, check, **then** delete the old one.
 | R2 key | `backup` variables `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare → R2 → Manage API tokens → new Account token, Object Read & Write, only `rail-canvas-backups`. Paste both into `backup`'s variables, run a backup now, then delete the old token |
 | healthchecks ping URLs | `backup` and `cleanup`, variable `HC_PING_URL` each (two checks) | healthchecks.io → make a new check with the same schedule (cron `0 19 * * *`, UTC, grace 1 hour), paste its URL, run a backup now (the new check turns green), delete the old check. The same for `cleanup` (cron `0 20 * * *`) |
 | `RAILWAY_TOKEN` | GitHub secret, used by the Railway plan and apply workflows | Railway → project Settings → Tokens → new token for `production`. GitHub → repo Settings → Secrets → Actions → update `RAILWAY_TOKEN`. Delete the old token in Railway |
+| `RAILWAY_TOKEN_STAGING` | GitHub secret, staging's apply on every push | The same, with a token for `staging` (`github-iac-staging`) |
+| Staging passwords | staging's `api`: `APP_DB_PASSWORD`, `SEED_OWNER_PASSWORD`; GitHub secret `STAGING_OWNER_PASSWORD` | Fake data only. Easiest: empty staging's database (above) and paste new values before the next push; the deploy sets them up again |
 | `app` password | `api` variable `APP_DB_PASSWORD`, inside `DATABASE_URL` | Open the database (section above). `ALTER ROLE app WITH PASSWORD '…'` as `postgres`, then the same value in `APP_DB_PASSWORD`; the API redeploys with it. A few seconds of errors in between |
 | `postgres` password | the `Postgres` service; referenced by `api` (`MIGRATE_DATABASE_URL`) and `backup` | Railway → `Postgres` → its credentials / Variables (Railway updates the user and the references together where it offers that). Then redeploy `api` and run a backup to prove both still connect |
 | Template bucket keys | the `templates` bucket, referenced by `api` (`S3_*`) | Railway → `templates` → Credentials → reset, if offered. The references update; redeploy `api` and upload a template to check |

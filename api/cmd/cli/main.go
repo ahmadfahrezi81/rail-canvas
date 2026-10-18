@@ -21,7 +21,8 @@ commands:
   bootstrap   create the first space and its owner (once; refuses if users exist)
   migrate     apply pending migrations (MIGRATE_DATABASE_URL, as postgres)
   bucket-cors let CORS_ORIGINS upload to and download from the templates bucket (S3_*)
-  predeploy   migrate, then bucket-cors: Railway's pre-deploy command
+  predeploy   migrate, app login, seed (staging), bucket-cors: Railway's pre-deploy command
+  seed        fill an empty database with a staging space and owner (SEED_OWNER_PASSWORD); never production
   snapshot    queue this hour's snapshot pass for the worker (cron service "snapshot", hourly)
   cleanup     delete what has expired; -dry-run only counts (cron service "cleanup", nightly)`
 
@@ -39,9 +40,9 @@ func main() {
 	case "bucket-cors":
 		err = bucketCORS()
 	case "predeploy":
-		if err = migrateCmd(); err == nil {
-			err = bucketCORS()
-		}
+		err = predeploy()
+	case "seed":
+		err = seedCmd(false)
 	case "snapshot":
 		err = snapshotCmd()
 	case "cleanup":
@@ -114,4 +115,14 @@ func readPassword() ([]byte, error) {
 		return nil, errors.New("password must be 10 to 72 characters")
 	}
 	return p1, nil
+}
+
+// predeploy runs once per deploy, after the build and before the new version starts.
+func predeploy() error {
+	for _, step := range []func() error{migrateCmd, appLoginCmd, func() error { return seedCmd(true) }, bucketCORS} {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

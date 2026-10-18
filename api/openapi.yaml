@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Rail Canvas API
-  version: 0.7.0
+  version: 0.8.0
 
 # Inlined per response (not components/responses) so every generated error type has one shape.
 x-error-response: &error
@@ -441,10 +441,11 @@ components:
 
     Health:
       type: object
-      required: [status, env]
+      required: [status, env, commit]
       properties:
         status: { type: string }
         env: { type: string }
+        commit: { type: string, description: "The deployed git commit; empty locally" }
 
     LoginRequest:
       type: object

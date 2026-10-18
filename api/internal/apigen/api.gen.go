@@ -231,6 +231,8 @@ type Error struct {
 
 // Health defines model for Health.
 type Health struct {
+	// Commit The deployed git commit; empty locally
+	Commit string `json:"commit"`
 	Env    string `json:"env"`
 	Status string `json:"status"`
 }

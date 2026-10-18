@@ -1,0 +1,63 @@
+# After CI passes on a staging commit: wait until staging runs it, test it end to end there, and
+# report a "staging" commit status, which a release pull request into main requires.
+# Not on push: Railway's Wait for CI waits for every Actions run on the commit, so a run started by
+# the push would wait for the deploy while the deploy waits for it. A workflow_run is filed under
+# main's commit, and a commit status is not something Wait for CI reads.
+name: Staging tests
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [staging]
+
+permissions:
+  contents: read
+  statuses: write
+
+# A newer push wins; its own run reports on its own commit.
+concurrency:
+  group: staging-tests
+  cancel-in-progress: true
+
+jobs:
+  staging:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      STAGING_URL: ${{ vars.STAGING_URL }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Report pending
+        run: gh api "repos/${{ github.repository }}/statuses/$SHA" -f state=pending -f context=staging -f description="Waiting for staging" -f target_url="$RUN_URL"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      # Railway builds and deploys after CI; up to 20 minutes, then this run fails.
+      - name: Wait for staging to run this commit
+        run: |
+          for _ in $(seq 120); do
+            [ "$(curl -fsS "$STAGING_URL/health" | jq -r .commit)" = "$SHA" ] && exit 0
+            sleep 10
+          done
+          echo "staging did not reach $SHA in 20 minutes" >&2
+          exit 1
+      - name: Test staging
+        working-directory: api
+        env:
+          STAGING_OWNER_PASSWORD: ${{ secrets.STAGING_OWNER_PASSWORD }}
+          WANT_COMMIT: ${{ env.SHA }}
+        run: go test -tags staging -count=1 -v ./stagingtest/
+      - name: Report the result
+        if: always()
+        run: |
+          state=failure; desc="Failed on staging"
+          [ "${{ job.status }}" = success ] && state=success && desc="Passed on staging"
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state=$state -f context=staging -f description="$desc" -f target_url="$RUN_URL"

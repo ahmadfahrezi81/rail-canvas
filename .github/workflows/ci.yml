@@ -1,14 +1,15 @@
-# Every pull request, and every push to main: Railway's "Wait for CI" reads the push run.
+# Every push to staging and main: Railway's "Wait for CI" reads the push run. Not on pull requests:
+# a release pull request's commit is the staging commit that already passed here.
 name: CI
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 
+# Never cancelled: Railway skips a deploy whose run was cancelled.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read

@@ -50,7 +50,8 @@ Learning is the point. The structure matters more than the feature list.
 ├── api/                      # Go module (github.com/ahmadfahrezi81/rail-canvas/api)
 │   ├── openapi.yaml          # the API contract
 │   ├── cmd/api/              # the HTTP service; Railway start command /app/api
-│   ├── cmd/cli/              # admin commands (bootstrap, migrate, bucket-cors, predeploy) and the cron jobs (snapshot, cleanup); /app/cli in the image
+│   ├── cmd/cli/              # admin commands (bootstrap, migrate, bucket-cors, predeploy, seed) and the cron jobs (snapshot, cleanup); /app/cli in the image
+│   ├── stagingtest/          # end-to-end checks against a deployed staging (build tag "staging")
 │   ├── cmd/worker/           # the background jobs (asynq on Redis); Railway start command /app/worker
 │   ├── db/migrations/        # goose; embedded into the binary by db/embed.go
 │   ├── db/queries/           # sqlc input
@@ -201,7 +202,7 @@ the API**: with two replicas it would fire twice.
 - **`snapshot`**, `0 * * * *`: `/app/cli snapshot` queues this hour's `snapshots:pass` for the worker; without Redis it takes the pass itself
 - **`cleanup`**, `0 20 * * *` (an hour after the backup): `/app/cli cleanup` (`service.Cleanup`) deletes expired sessions, tickets and invites, pixel history older than 30 days (never the board), timelapses beyond the newest 10 per canvas, and uploads that never completed. `-dry-run` only counts. A file is deleted before its row, so a failed file delete keeps the row for the next run; pixels go 5,000 per transaction, per canvas. healthchecks.io ping as for the backup (`HC_PING_URL`)
 - **A run must end on its own** (5 and 15 minute limits): Railway skips the next run while one is still going
-- **Merge away from :50–:05 UTC.** Every merge redeploys every service; a cron service mid-deploy at its scheduled time skips that run
+- **Release away from :50–:05 UTC.** Every merge into `main` redeploys every production service; a cron service mid-deploy at its scheduled time skips that run. Pushes to `staging` touch only staging
 - **A new rule for a new table goes in `cleanup.go`** with a test on both sides of its line
 
 ## Logging
@@ -227,16 +228,29 @@ the API**: with two replicas it would fire twice.
 
 ## CI and deploying
 
-**Work goes on a branch, then a pull request.** `main` is protected: the four CI jobs must pass. `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+**Two environments, two branches** (Step 16). The `staging` branch deploys to Railway's `staging` environment (its own Postgres, Redis and bucket, seeded fake data); `main` deploys to `production`.
+
+```
+local branch ─▶ merge into staging ─▶ push (ask the owner first) ─▶ CI ─▶ staging deploys ─▶ staging tests
+                                                                                               │
+                        production deploys ◀─ CI on main ◀─ owner merges ◀─ PR staging → main ◀┘
+```
+
+- **Work happens on a local branch** and is tested locally (`make check`, `make test-db`). Merging into `staging` locally is fine; **pushing `staging` needs the owner's OK** each time (every push is a staging build and deploy)
+- **A release is a pull request `staging` → `main`, merged with a merge commit** (never squash: `main` would get a commit `staging` never had, and the next release would conflict). `main` requires the four CI checks and the `staging` status
+- **Every real test runs once:** CI on the push to `staging` (the authority), then the staging tests on the deployed staging. The release pull request reuses both (same commit); CI runs again on `main` only because Railway's Wait for CI needs a green run on the merge commit. Production is never tested by writing to it
+- **The staging tests** (`staging-tests.yml`, `api/stagingtest/`): after CI on a `staging` commit, wait until staging's `/health` reports that commit, then log in as the seeded owner and check a pixel reaches a WebSocket and the board, the cooldown, a bot link code, a template through the bucket. A few checks of the wiring, not the logic; a commit status `staging` reports the result. It starts on `workflow_run`, never on `push`: Wait for CI waits for every Actions run on a commit, so a run waiting for the deploy would deadlock it
+
+`.github/workflows/ci.yml` runs on every push to `staging` and `main` (not on pull requests):
 
 - `api` — gofmt, vet, `cli migrate` on a throwaway `postgres:18`, then `go test -race` with the database and Redis tests (a `redis:8.2` service)
 - `contract` — `make generate`, then fail on any change: generated code is out of date
 - `web` — `pnpm build`
 - `docker` — builds the `Dockerfile` and `ops/backup/Dockerfile`, shellchecks the backup scripts, pushes nothing
 
-Railway's **Wait for CI** (`checkSuites` in `.railway/railway.ts`) holds a deploy until the push run on `main` is green.
+Railway's **Wait for CI** (`checkSuites` in `.railway/railway.ts`) holds a deploy until every Actions run started by the push is green.
 
-**Migrations run on deploy, never on API boot.** `.railway/railway.ts` sets the pre-deploy command `/app/cli predeploy` (`migrate`, then `bucket-cors`): after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
+**Migrations run on deploy, never on API boot.** `.railway/railway.ts` sets the pre-deploy command `/app/cli predeploy` (`migrate`; give `app` its password if it cannot log in yet, which only a fresh database needs; `seed` when `SEED_OWNER_PASSWORD` is set, never in production; then `bucket-cors`): after the build, before the new version starts, inside Railway's private network, as `postgres` (`MIGRATE_DATABASE_URL`). If it fails, the deploy stops and the old version keeps serving. It holds a Postgres advisory lock, and an older binary (a rollback) applies nothing. The pre-deploy command runs while the old version still serves, which is why every migration must be backward-compatible. The database has no public address.
 
 Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/health`. Railway sends `SIGTERM` before replacing a deploy; the API stops accepting, lets in-flight requests finish within `SHUTDOWN_TIMEOUT_SECONDS`, then exits.
 
@@ -244,17 +258,20 @@ Railway builds the root `Dockerfile`: start command `/app/api`, healthcheck `/he
 
 ## Railway as code
 
-`.railway/railway.ts` describes production: the `api` service (source, start, pre-deploy, healthcheck, Wait for CI, variables) and `Postgres` with its volume. Railway's own format ("Infrastructure as Code"); `railway.json` files are deprecated and are not read.
+`.railway/railway.ts` describes production and staging (`ctx.isEnvironment("production")` picks the differences: staging runs one API copy, deploys the `staging` branch, has no `backup` and no `bot`, writes its database URLs as references and holds no production secret). Production: the `api` service (source, start, pre-deploy, healthcheck, Wait for CI, variables) and `Postgres` with its volume. Railway's own format ("Infrastructure as Code"); `railway.json` files are deprecated and are not read.
 
-- **Change it by pull request.** `railway-plan.yml` comments Railway's plan on the PR; merging is the approval; `railway-apply.yml` applies exactly that plan. A direct push to `main` has no plan and fails.
+- **Production changes by release pull request.** `railway-plan.yml` comments production's plan on the PR into `main`; merging is the approval; `railway-apply.yml` applies exactly that plan. A direct push to `main` has no plan and fails.
+- **Staging applies on every push to `staging`** (plan and apply in one job, `RAILWAY_TOKEN_STAGING`): a push has no pull request to pin a plan to. A Railway change is therefore tried on staging before it reaches production.
 - **Never edit a declared setting in the dashboard.** The next apply fails (the environment changed since the plan); put the change in the file instead.
 - **Nothing is deleted by CI.** Removing a resource from the file deletes it on apply, so the apply runs with `confirm-destructive: false`: a plan that deletes anything fails. Postgres stays declared. Deletes are done by hand, with the owner.
 - **A plan is only valid for the project as it was.** Any dashboard change after the plan (even pasting a `preserve()` variable's value) makes the apply fail with "The environment changed since this plan was computed". Paste values first, then plan; if it happens, open a new pull request for a fresh plan.
 - **A Function's code is part of the plan**, so `functions/**` triggers the plan and apply workflows like `.railway/**`. It deploys on apply, with no Wait for CI (no repository); CI has tested it on the pull request.
 - **Railway drops `checkSuites` when it creates a service.** A new service needs a second pull request to apply Wait for CI.
 - **Variables are managed by the file, values are not in it.** `preserve()` keeps the value Railway holds. Never `railway config pull --include-variables`.
-- **Locally:** `railway config plan` (read-only) to preview; `apply` only through the pull request.
-- The workflows use `RAILWAY_TOKEN`, a project token for `production` in GitHub's secrets.
+- **Locally:** `railway config plan --environment production|staging` (read-only) to preview; `apply` only through the workflows.
+- The workflows use `RAILWAY_TOKEN` and `RAILWAY_TOKEN_STAGING`, project tokens for `production` and `staging` in GitHub's secrets. A project token reaches one environment only.
+- **A new environment gets its databases from the dashboard, never from the file.** Creating staging, the apply made Postgres with the literal text `secret(32, "…")` as its password and Redis with no variables (a bug in Railway's beta engine); every service failed. Create the environment Empty, add its databases with **+ New → Database** and name them `Postgres-<env>` and `Redis-<env>` (service and bucket names are project-wide: `Postgres` is production's; staging's bucket is `templates-staging`, made with `railway bucket create`), then let the file adopt them by name and create the rest. Sync did not work: it brought the databases without their disks, and an empty environment has no Sync button
+- **`ctx.randomString()` is not a secret** (a hash of the environment's name and a label): never use it for a password.
 
 ---
 
