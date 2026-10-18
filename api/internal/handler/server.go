@@ -19,6 +19,7 @@ import (
 // Server implements the interface generated from openapi.yaml.
 type Server struct {
 	env        string
+	commit     string
 	auth       *service.Auth
 	spaces     *service.Spaces
 	canvases   *service.Canvases
@@ -86,9 +87,15 @@ func (s *Server) ShareLimits(rdb *redis.Client, onErr func(op string, err error)
 	s.linkCodeLimit.Share(rdb, "link-code", onErr, up)
 }
 
+// WithCommit makes /health report the deployed commit, which the staging tests wait for.
+func (s *Server) WithCommit(commit string) *Server {
+	s.commit = commit
+	return s
+}
+
 // GetHealth stays dependency-free: a DB blip must not get a healthy API restarted.
 func (s *Server) GetHealth(ctx context.Context, _ apigen.GetHealthRequestObject) (apigen.GetHealthResponseObject, error) {
-	return apigen.GetHealth200JSONResponse{Status: "ok", Env: s.env}, nil
+	return apigen.GetHealth200JSONResponse{Status: "ok", Env: s.env, Commit: s.commit}, nil
 }
 
 type access int

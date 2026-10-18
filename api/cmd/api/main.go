@@ -100,7 +100,7 @@ func run() error {
 	pixels := service.NewPixels(pool, bus).WithRedis(rdb)
 	server := handler.NewServer(cfg.Env, auth, service.NewSpaces(pool), canvases, pixels,
 		service.NewTemplates(pool, objects).WithQueue(queue), snapshots, service.NewTimelapses(pool, objects, queue),
-		service.NewBot(pool, pixels), cfg.WebhookSecret)
+		service.NewBot(pool, pixels), cfg.WebhookSecret).WithCommit(cfg.Commit)
 	if rdb != nil {
 		server.ShareLimits(rdb.Client(), rdb.Failed, rdb.Up)
 	}

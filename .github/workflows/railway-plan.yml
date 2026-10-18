@@ -1,9 +1,10 @@
-# A pull request that changes .railway/ gets Railway's plan as a comment. Merging approves it.
+# A release pull request that changes .railway/ gets production's plan as a comment. Merging approves it.
 # functions/ too: a Function's code is embedded in the plan, so a change to it is a change to Railway.
 name: Railway plan
 
 on:
   pull_request:
+    branches: [main] # a release: production's plan. Staging applies on push (railway-apply.yml)
     paths: [".railway/**", "functions/**"]
 
 permissions:

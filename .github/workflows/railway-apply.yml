@@ -1,9 +1,12 @@
-# On merge, applies exactly the plan pinned to the pull request. A direct push to main has no plan and fails.
+# Production: on merge, applies exactly the plan pinned to the release pull request. A direct push
+# to main has no plan and fails. Staging: every push to staging plans and applies at once (pushes
+# have no pull request to pin a plan to); it runs on push, so staging's deploy waits for it.
+# functions/ too: a Function's code is embedded in the plan, so a change to it is a change to Railway.
 name: Railway apply
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
     paths: [".railway/**", "functions/**"]
 
 permissions:
@@ -12,7 +15,8 @@ permissions:
   pull-requests: read # to find the merged pull request and its plan
 
 jobs:
-  apply:
+  production:
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,3 +26,20 @@ jobs:
           railway-token: ${{ secrets.RAILWAY_TOKEN }}
           # A plan that deletes anything (the database included) fails here. Deletes are done by hand.
           confirm-destructive: false
+
+  staging:
+    if: github.ref_name == 'staging'
+    runs-on: ubuntu-latest
+    concurrency: railway-staging # one apply at a time, in push order
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: corepack enable pnpm && pnpm install --frozen-lockfile
+      - run: npm install -g @railway/cli
+      - run: railway config plan --environment staging
+      # Non-interactive without --confirm-destructive: a plan that deletes anything fails.
+      - run: railway config apply --environment staging --yes
