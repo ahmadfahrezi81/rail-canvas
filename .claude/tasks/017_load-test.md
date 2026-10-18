@@ -1,11 +1,11 @@
-# Task 017 — A k6 load test from the laptop against staging, to find where Rail Canvas bends
+# Task 017 — A k6 load test from the laptop against staging: what 100 players need, and what they cost
 
-**Status: draft 2026-10-18, waiting for the owner's review.**
+**Status: draft 2026-10-18, sanity-checked the same day (below), waiting for the owner's review.**
 
 Plan: [Rail Canvas, Step 17](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9) and its
 "Load test" section (the 2026-10-04 draft: real-player flows, ramp slowly, pass or fail written down
-before the run, find the limit by narrowing, a results table, raise the login limits in staging
-only), "Cost" (egress grows with fan-out) and "Operations" (the stats line). Last stretch step
+before the run, a results table, raise the login limits in staging only; its "find the limit by
+narrowing" is dropped, see the goal), "Cost" (egress grows with fan-out) and "Operations" (the stats line). Last stretch step
 before the README (Step 18).
 
 ## The goal
@@ -15,6 +15,31 @@ that cost?** Measured at 10, 25, 50 and 100 players, so the trend can be extrapo
 ("N players for an hour costs about this much, and the part that runs out first is X").
 
 Not a goal: finding the absolute ceiling. Past 100 players is a later, deliberate choice.
+
+**Why not the ceiling** (the owner's reasoning): on a fixed-price server (a VPS, the home server)
+pushing until it breaks costs nothing extra and finds the box's limit. On Railway the bill follows
+the load, and a bigger load is always available for more money, so "how much can it take" has no
+useful answer. "What do 100 players use, and what does that cost" is a data point the next project
+can price from.
+
+## What the sanity check found (2026-10-18)
+
+- **Railway's CLI reports usage per time window** (`railway metrics --since … --until …`: CPU,
+  memory, network per service) and the month's bill (`railway usage`). So each run's cost is
+  measured from the run's own window, not guessed from graphs, and not mixed with the rest of the day
+- **No usage limit is set** on the account (`railway usage`: soft and hard limit "not set"; the
+  month so far \$0.43, estimated \$0.74). STATUS and Notion believed there was a \$7 limit. So a
+  runaway cannot stop production, but nothing caps the bill either (decision for the owner, below)
+- **The cost to report is the extra the load adds**: memory is paid all month whether players come
+  or not. Each run's cost = (CPU and egress in its window) − (the same window's baseline, measured
+  in the minutes before it). The extrapolation is then "fixed monthly cost + cost per player-hour"
+- **The fan-out estimate was off by a little**: 100 players placing every ~2.5 s is about 40 pixels
+  a second, each sent to 100 sockets, about 4,000 messages a second (~0.6 MB/s), about 0.1 GB for a
+  3-minute run. Fixed below
+- **Logging 100 players in takes about 30 seconds** (bcrypt at cost 12 on the server, by design),
+  longer than k6's default 60-second setup limit allows with margin; the script sets its own
+- **k6's WebSocket API decides the script's shape**: a player's loop runs inside its socket's event
+  loop (`k6/experimental/websockets` with timers), so placing and listening happen together
 
 ## Why this exists
 
@@ -47,7 +72,7 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
      Indonesia). That is what real players see too, so it stays in the numbers; the API's own time
      is on the stats line and in Railway's metrics, which do not include it
    - **The laptop's connection is part of the test.** The fan-out comes back down to the laptop:
-     at 100 players, roughly 100 × 50 pixels a second ≈ 5,000 messages a second, under 1 MB/s. If
+     at 100 players, about 40 pixels a second × 100 sockets ≈ 4,000 messages a second, ~0.6 MB/s. If
      the laptop or the Wi-Fi gives out first, that is a limit of the test, not of Rail Canvas; the
      run shows it (k6's own errors, dropped sockets on the laptop side while the API stays calm)
    - **All players share one IP**, which the login and signup limits would throttle (decision 5)
@@ -112,19 +137,20 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
     `ws_dropped_slow`, `db_in_use`, `db_waited_total`, `bus_published`, `bus_received`,
     `redis_errors`), and Railway's CPU, memory and network graphs for `api`, `Postgres-staging`,
     `Redis-staging`. One row per run in the results table
-13. **What each run cost**, for the extrapolation: from Railway's metrics for that window (vCPU
-    and memory used by `api` ×2, `Postgres-staging`, `Redis-staging`, and the egress) × Railway's
-    prices (vCPU \$20 per month, memory \$10 per GB-month, egress \$0.05 per GB), cross-checked the
-    next day against the Usage page. The table gets "cost per run" and "cost per player-hour"
+13. **What each run cost**, for the extrapolation: `railway metrics --since <start> --until <end>`
+    for `api`, `Postgres-staging`, `Redis-staging` (CPU, memory, egress) × Railway's prices (vCPU
+    \$20 per month, memory \$10 per GB-month, egress \$0.05 per GB), minus the same services'
+    baseline in the 3 minutes before. Cross-checked against `railway usage` before and after the
+    session. The table gets "extra cost per run" and "cost per player-hour"
 
 ### The cost cap
 
 - **The whole step stays far under \$5**: four short runs, about 12 minutes of load. Estimated egress
   for the 100-player run ≈ 0.1 GB (\$0.005); CPU and memory a few cents. **The script refuses more
   than 100 players**, so a typo cannot start a big run
-- **Railway's usage limit (\$7) still stops production too** if the month's total reaches it. Before
-  the first run the owner looks at the Usage page; if the month is already near \$5, raise the limit
-  for the day
+- **No usage limit is set today** (sanity check above). Recommended before the first run: a hard
+  limit, for example \$10, so no mistake can run up a bill. Reaching a hard limit stops every service,
+  production included, which at \$10 against a \$0.74 month is far away
 
 ### Results
 
@@ -135,8 +161,8 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
 
 ## Cost
 
-A run of 100 players for 3 minutes: the fan-out is under 1 MB/s, about 0.2 GB of egress, about
-\$0.01. CPU while running: a few cents. All runs together: well under \$1. The second API copy on
+A run of 100 players for 3 minutes: the fan-out is about 0.6 MB/s, about 0.1 GB of egress, about
+\$0.005. CPU while running: a few cents. All runs together: well under \$1. The second API copy on
 staging: about \$0.50 a month.
 
 ## Files
@@ -183,9 +209,9 @@ pass a threshold (a fix would be its own step, after the result is in).
 ## Risks
 
 - **The laptop is the bottleneck before Rail Canvas.** Seen as k6-side errors while staging's stats
-  stay calm; the run is then reported as "limit of the test" and decision 13 applies
-- **Railway's usage limit** (\$7) stops every service, production included, if reached. These runs
-  cost cents, but the owner glances at the Usage page before the first run
+  stay calm; the run is then reported as "limit of the test", and the bigger runs are skipped
+- **No cap on the bill** until the owner sets a usage limit (decision below). These runs cost
+  cents; the script's 100-player cap and fixed 3-minute runs are the guard until then
 - **A run left going** costs egress: every run has a fixed 3-minute duration, and Ctrl-C stops it
 - **Staging's history grows** by a few hundred thousand pixels; staging's nightly cleanup and the
   30-day retention take care of it, and staging's data is fake
@@ -193,6 +219,8 @@ pass a threshold (a fix would be its own step, after the result is in).
 ## Decided with the owner (2026-10-18)
 
 - Thresholds: mine for latency; **errors must be zero**
+- Still open: **a hard usage limit** (my suggestion \$10), set by the owner in Railway → Workspace
+  → Usage, or by me with `railway usage limit set` on the owner's OK
 - Logins are real, one token per player
 - The question is 100 players and what they cost, measured at 10, 25, 50, 100; no ceiling hunt, no
   hammer run (a later step if wanted). The script refuses more than 100 players
