@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -198,4 +199,28 @@ func inTenantExec(ctx context.Context, pool *pgxpool.Pool, tenant uuid.UUID, sql
 		_, err := tx.Exec(ctx, sql, args...)
 		return err
 	})
+}
+
+func TestCanvasPalette(t *testing.T) {
+	space, user, _, pixels, _ := memberWithCanvas(t, 1)
+	ctx := context.Background()
+	svc := NewCanvases(pixels.pool)
+
+	c, err := svc.CreateWithPalette(ctx, space, user, "big", 1, "place32")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Palette.ID != "place32" || len(c.Palette.Colors) != 32 || c.Palette.Colors[0] != "#FFFFFF" {
+		t.Errorf("place32 canvas: palette %s with %d colours, background %s", c.Palette.ID, len(c.Palette.Colors), c.Palette.Colors[0])
+	}
+	if _, err := pixels.Place(ctx, space, c.ID, user, 1, 1, 31, "web"); err != nil {
+		t.Errorf("colour 31: %v", err)
+	}
+	time.Sleep(1100 * time.Millisecond) // the 1 s cooldown
+	if _, err := pixels.Place(ctx, space, c.ID, user, 2, 2, 32, "web"); !errors.Is(err, ErrInvalidPixel) {
+		t.Errorf("colour 32: err = %v, want ErrInvalidPixel", err)
+	}
+	if _, err := svc.CreateWithPalette(ctx, space, user, "odd", 1, "pico8"); !errors.Is(err, ErrUnknownPalette) {
+		t.Errorf("unknown palette: err = %v, want ErrUnknownPalette", err)
+	}
 }

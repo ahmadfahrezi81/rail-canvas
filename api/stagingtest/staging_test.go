@@ -165,6 +165,18 @@ func TestStaging(t *testing.T) {
 		}
 	})
 
+	t.Run("a 32-colour canvas takes colour 31", func(t *testing.T) {
+		place32 := apigen.Place32
+		var big apigen.Canvas
+		if s := c.do("POST", "/spaces/"+space+"/canvases", apigen.CreateCanvasRequest{Name: name + " place32", CooldownSeconds: &one, Palette: &place32}, &big); s != 201 || len(big.Palette.Colors) != 32 {
+			t.Fatalf("create: %d, %d colours", s, len(big.Palette.Colors))
+		}
+		time.Sleep(1100 * time.Millisecond) // the space's turn, shared with the canvas above
+		if s := c.do("POST", "/spaces/"+space+"/canvases/"+big.Id.String()+"/pixels", apigen.PlacePixelRequest{X: 1, Y: 1, Color: 31}, nil); s != 201 {
+			t.Errorf("colour 31: %d, want 201", s)
+		}
+	})
+
 	t.Run("a template goes to the bucket and back", func(t *testing.T) {
 		img := image.NewNRGBA(image.Rect(0, 0, 2, 2))
 		img.Set(0, 0, color.Black)

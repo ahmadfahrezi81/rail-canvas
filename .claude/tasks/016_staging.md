@@ -6,6 +6,16 @@ full CI on `main` kept, none on pull requests).
 Approved 2026-10-18. Setup built and shown locally (below); waiting for the owner's OK to push
 `staging`.**
 
+## The palette (2026-10-18)
+
+`place32` (r/place 2022's 32 colours, white first because index 0 is the background) beside
+`classic16`, chosen on the new-canvas form (`CreateCanvasRequest.palette`, contract 0.9.0, default
+`classic16`; an unknown id is a 400). `Canvases.CreateWithPalette`; `Create` keeps the default, so
+every caller stays as it was. No migration: the column already holds the id. Colour names reach the
+swatches (`title`) and the bot; "gray" is read as "grey" everywhere. Tests: every palette has unique
+colours and names; a `place32` canvas takes 31 and refuses 32; the staging tests gain "a 32-colour
+canvas takes colour 31" (passed against a local API).
+
 ## Live on staging (2026-10-18, 14:47 UTC)
 
 Staging at `https://api-staging-9e8a.up.railway.app`, commit `19acdb7`. The first deploy with the

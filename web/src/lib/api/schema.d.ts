@@ -432,6 +432,11 @@ export interface components {
             name: string;
             /** @description Default 10 */
             cooldownSeconds?: number;
+            /**
+             * @description Default classic16 (r/place 2017, 16 colours); place32 is r/place 2022's 32. Fixed for the canvas's life
+             * @enum {string}
+             */
+            palette?: "classic16" | "place32";
         };
         PlacePixelRequest: {
             x: number;

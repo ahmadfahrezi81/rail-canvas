@@ -3,6 +3,7 @@ import type { components, paths } from "./schema";
 import { tokenStore } from "./token";
 
 export type Canvas = components["schemas"]["Canvas"];
+export type PaletteId = NonNullable<components["schemas"]["CreateCanvasRequest"]["palette"]>;
 export type User = components["schemas"]["User"];
 export type Membership = components["schemas"]["SpaceMembership"];
 export type Me = components["schemas"]["Me"];
@@ -107,10 +108,10 @@ export const canvasesApi = {
     if (error) fail(response, error);
     return data.canvases;
   },
-  async create(spaceId: string, name: string): Promise<Canvas> {
+  async create(spaceId: string, name: string, palette: PaletteId): Promise<Canvas> {
     const { data, error, response } = await client.POST("/spaces/{spaceId}/canvases", {
       params: { path: { spaceId } },
-      body: { name },
+      body: { name, palette },
     });
     if (error) fail(response, error);
     return data;

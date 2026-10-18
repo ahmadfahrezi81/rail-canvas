@@ -191,6 +191,18 @@ func TestPaletteColorNames(t *testing.T) {
 			}
 		}
 	}
+	for id, p := range palettes {
+		seen := map[string]bool{}
+		for _, c := range p.Colors {
+			if seen[c] {
+				t.Errorf("%s: colour %s twice", id, c)
+			}
+			seen[c] = true
+		}
+	}
+	if got, ok := palettes["place32"].Color("Dark Gray"); !ok || got != 3 {
+		t.Errorf("place32 \"Dark Gray\": got %d, %v; want 3", got, ok)
+	}
 	p := palettes["classic16"]
 	for word, want := range map[string]int{"Dark Blue": 13, "dark-blue": 13, "gray": 2, "5": 5, "0": 0} {
 		if got, ok := p.Color(word); !ok || got != want {

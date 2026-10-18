@@ -44,11 +44,19 @@ func (s *Canvases) WithRedis(r *Redis) *Canvases {
 const DefaultCooldown = 10
 
 func (s *Canvases) Create(ctx context.Context, spaceID, userID uuid.UUID, name string, cooldownSeconds int) (Canvas, error) {
+	return s.CreateWithPalette(ctx, spaceID, userID, name, cooldownSeconds, DefaultPalette)
+}
+
+// CreateWithPalette fixes the canvas's palette for good: a cell stores only an index into it.
+func (s *Canvases) CreateWithPalette(ctx context.Context, spaceID, userID uuid.UUID, name string, cooldownSeconds int, palette string) (Canvas, error) {
+	if !ValidPalette(palette) {
+		return Canvas{}, ErrUnknownPalette
+	}
 	var out Canvas
 	err := inTenant(ctx, s.pool, spaceID, func(q *store.Queries) error {
 		row, err := q.CreateCanvas(ctx, store.CreateCanvasParams{
 			SpaceID: spaceID, Name: name, CreatedBy: uuid.NullUUID{UUID: userID, Valid: true},
-			CooldownSeconds: int32(cooldownSeconds),
+			CooldownSeconds: int32(cooldownSeconds), Palette: palette,
 		})
 		if err != nil {
 			return err
