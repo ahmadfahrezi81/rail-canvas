@@ -23,6 +23,7 @@
 | 14 | Two API replicas; placements pass between them through Redis pub/sub (`realtime.Bus`), `resync` after a gap. Cross-copy test passed live (10 sockets split 5/5, one pixel, every socket got it once) | 014 |
 | 15 | Telegram bot as a Railway Function (`bot`, Bun, `functions/webhook/index.ts`): `/link CODE` with a one-time code from the canvas page, `/place X Y COLOUR` through the API with the web's cooldown, `source = 'bot'`. Live test with fake updates passed 2026-10-18; no real Telegram bot connected yet (runbook) | 015 |
 | 16 | `staging` environment before production: branch `staging` → staging (`Postgres-staging`, `Redis-staging`, `templates-staging`, seeded `staging-club`), release PR `staging` → `main` (merge commit; CI + `staging` status from `staging-tests.yml` required). `/health` reports the commit. Palette `place32` shipped through it. PR environment skipped | 016 |
+| 17 | k6 load test from the laptop against staging (`ops/loadtest/`, `make loadtest players=N`, at most 100). 10/25/50/100 players all pass with zero errors; at 100: p95 162 ms, p99 289 ms, placed-to-seen p95 241 ms, API 0.2 vCPU peak. About \$0.05 per 100 player-hours, ~90% egress (fan-out). Staging runs 2 API copies and 100 seeded players | 017 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -32,8 +33,9 @@
 
 ## Next
 
-1. **Step 17** (task 017 to write): the k6 load test against staging (raise staging's login limits first)
-2. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
+1. **Release** the load test code (PR `staging` → `main`; production gets no change but the seed's player option)
+2. **Step 18** (task 018 to write): the README, architecture diagram, Usage page numbers, what was learned
+3. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
 
 **Release away from :50–:05 UTC, every time.** Each merge into `main` redeploys every production
 service, the cron ones included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
@@ -60,6 +62,8 @@ to `.railway/` gets production's plan on the release PR. After a release, merge 
 
 - `rail-canvas/.env`: `MIGRATE_DATABASE_URL` (postgres, public proxy), `APP_DB_PASSWORD`, `DATABASE_URL` (app role, public proxy, for local runs), `OWNER_PASSWORD`, `TELEGRAM_SECRET_TOKEN`, plus leftover `DEV_SPACE_ID` (ignored)
 - `rail-canvas/web/.env.local`: `VITE_API_URL=http://localhost:8080`
+- Railway usage limits (set by the owner 2026-10-18): compute hard limit \$10, email alert \$5; agent limit at its minimum. The Step 1 "\$7 limit" was not actually set
+- `ops/loadtest/.tokens.json` on the laptop: the 100 staging players' session tokens (30 days; `make loadtest-login` renews)
 - Railway variable values on `api` (names are in `.railway/railway.ts`): `APP_DB_PASSWORD`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` (references), `CORS_ORIGINS`, `WEBHOOK_SECRET` (copy in Passwords, "rail-canvas webhook secret"; Step 15's Function needs it). `preserve()` keeps a value but never creates one: a new secret variable is added by hand in the dashboard
 - `bot` (Railway Function): public domain `bot-production-2161.up.railway.app` (generated in the dashboard); `TELEGRAM_SECRET_TOKEN` (copy in Passwords, "rail-canvas telegram secret", and in local `.env`). Its `WEBHOOK_SECRET` is a reference to `api`'s
 - GitHub secret `RAILWAY_TOKEN`: Railway project token `github-iac`, `production`
