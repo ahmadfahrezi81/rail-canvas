@@ -1,6 +1,27 @@
 # Task 015 — A Telegram bot places pixels through a Railway Function, with linked accounts
 
-**Status: approved 2026-10-18 after a sanity check (below). Built, shown locally, pull request open.**
+**Status: approved 2026-10-18 after a sanity check (below). Live 2026-10-18 (PR #24).**
+
+## Live check (2026-10-18, 12:11 UTC)
+
+The owner generated the `bot` domain (`bot-production-2161.up.railway.app`) and pasted
+`TELEGRAM_SECRET_TOKEN` on `bot` and in local `.env`. Fake Telegram updates sent from the laptop
+to the bot's public domain; the Function called the API over the private network
+(`rail-canvas.railway.internal:8080`). A link code was made as the owner on pixel-club's canvas.
+
+| Sent | Function answered | API |
+| --- | --- | --- |
+| `/place 140 140 red`, wrong secret | 401 | not called |
+| `/place 140 140 red`, before linking | "Link this chat first …" | `/webhooks/bot/pixels` 404 |
+| `/link BZDJ-TVY7` | "Linked as Tester 1, drawing on "new canvas" …" | `/webhooks/bot/link` 200 |
+| the same code again | "That code is wrong, used or expired …" | 404 |
+| `/place 140 140 red` | "Placed (140, 140) red. Next in 10 s" | 201, 56 ms; cell (140, 140) went 0 to 5 |
+| `/place 141 140 blue` at once | "Wait 10 s" | 429 |
+| `/place 1 1 mauve` | "Unknown colour." and the help | 400 |
+
+The bot's log shows one line per update (`refused reason=secret`, `link status=…`,
+`place status=…`), no secrets and no message text. No real Telegram bot is connected yet; the
+runbook says how (BotFather, `setWebhook` with the same secret).
 
 ## Local run (2026-10-18)
 
