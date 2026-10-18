@@ -144,6 +144,7 @@ export default defineRailway((ctx) => {
   return project("rail-canvas", {
     variables: { managed: true },
     // No backup (staging's data is fake) and no bot (one Telegram bot calls one address) in staging.
-    resources: [Postgres, api, postgresVolume, templates, Redis, worker, snapshot, cleanup, ...(prod ? [backup, bot] : [])],
+    // Staging's databases and their volumes come from the dashboard (Sync): the file only adopts them.
+    resources: [Postgres, api, templates, Redis, worker, snapshot, cleanup, ...(prod ? [postgresVolume, backup, bot] : [])],
   });
 });
