@@ -71,6 +71,14 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
    start of each run (the staging tests already make their own canvases). Two seconds keeps players
    placing often enough to load the system; ten would make most of a run idle waiting
 
+### Logging in
+
+- **No bypass.** Every player logs in for real with its own email and password and gets its own
+  session token (an opaque bearer token, checked live against the database on every request, not a
+  JWT). That check is part of every request in production, so it stays in the test; a bypass would
+  measure a different system
+- Logins happen once per player, in k6's setup step, before the clock starts
+
 ### What one player does (the k6 script)
 
 8. **Like a person, not a hammer** (Notion's draft):
@@ -87,13 +95,13 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
 
 ### The runs
 
-10. **Pass or fail, decided now** (the owner may change them before the first run):
+10. **Pass or fail, decided now** (thresholds for latency are mine, the owner's call; errors: zero):
 
     | Measure | Pass |
     | --- | --- |
     | HTTP p95 (all requests except login) | under 300 ms |
     | HTTP p99 | under 800 ms |
-    | Errors (anything but 2xx and the cooldown 429) | under 1% |
+    | Errors (anything but 2xx and the cooldown 429) | **0** (the owner's call: the first run with any error marks the level) |
     | "Placed to seen" p95 | under 500 ms |
     | Sockets dropped by the server (`ws_dropped_slow`) | 0 |
 
@@ -108,6 +116,29 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
 13. **If 200 players still pass**, the next step is not more players from the laptop (its own
     connection would become the limit) but a shorter cooldown (1 second), which doubles the load per
     player. Noted as a result, and the run stops there
+
+### Two kinds of run
+
+- **Players** (decisions 8–13): realistic people, random cells, waits between actions. Answers
+  "how many players at once?"
+- **Hammer**, after the player runs: no waits. Logged-in players fire requests back to back, and k6
+  raises the rate step by step (an arrival rate: 50, 100, 200, 400 … requests a second) until the
+  first error or p99 breaks. The mix: reading the board (the Redis cache), placing pixels (most get
+  the cooldown 429, which is the cheap early refusal, and is not an error), `/me`. Answers "how many
+  requests a second can the API take?" Same thresholds, 2 minutes per rate
+
+### The cost cap
+
+- **Budget for all of Step 17: under \$5** (the owner's call). Railway bills CPU by the minute
+  (about \$0.0005 per vCPU-minute) and egress at \$0.05 per GB. The cost that grows fastest is the
+  fan-out: with N players placing every ~2.5 s, about N × N / 2.5 messages a second go out
+- **Estimates per 3-minute run:** 100 players ≈ 0.1 GB, 200 ≈ 0.4 GB, 500 ≈ 2.5 GB (≈ \$0.13).
+  CPU stays at cents. So the money cap is far away; **the hard caps are 500 players and 2,000
+  requests a second**, written into the script (it refuses more), because past those the laptop's
+  own connection is the limit, not Rail Canvas
+- **Railway's usage limit (\$7) still stops production too** if the month's total reaches it. Before
+  the first run the owner looks at the Usage page; if the month is already near \$5, raise the limit
+  for the day
 
 ### Results
 
@@ -172,9 +203,9 @@ pass a threshold (a fix would be its own step, after the result is in).
 - **Staging's history grows** by a few hundred thousand pixels; staging's nightly cleanup and the
   30-day retention take care of it, and staging's data is fake
 
-## Decisions for the owner
+## Decided with the owner (2026-10-18)
 
-- **The thresholds** in decision 10. Mine are typical for a small realtime app; tighter or looser
-  is fine, but they are fixed before the first run
-- **The 2-second cooldown** for the test canvas (decision 7), or the game's real 10 seconds
-  (gentler: about one fifth of the load per player)
+- Thresholds: mine for latency; **errors must be zero**
+- Logins are real, one token per player
+- Under \$5 for the whole step; hard caps 500 players and 2,000 requests a second
+- Both kinds of run: players, then hammer
