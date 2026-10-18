@@ -10,11 +10,11 @@ before the README (Step 18).
 
 ## The goal
 
-Find out **how many players Rail Canvas carries on Railway before it gets slow or starts failing**,
-and **which part gives out first**: the API's CPU, its memory, Postgres connections, Redis, the
-WebSocket fan-out, or the network. Write the answer down as a table of runs.
+The owner's question (2026-10-18): **can Rail Canvas handle 100 players at once, and what does
+that cost?** Measured at 10, 25, 50 and 100 players, so the trend can be extrapolated later
+("N players for an hour costs about this much, and the part that runs out first is X").
 
-Not a goal: a big number. "It bends at 60 players, and the reason is X" is a full result.
+Not a goal: finding the absolute ceiling. Past 100 players is a later, deliberate choice.
 
 ## Why this exists
 
@@ -63,9 +63,9 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
    the login, signup and join limits by 100. **The API refuses to start with it in production**
    (checked at boot from `RAILWAY_ENVIRONMENT_NAME`), so it can never weaken production by
    accident. Set on staging's `api` in the file, so it is visible and reviewed
-6. **200 players are seeded**: `player-001@example.com` … `player-200@example.com`, members of
+6. **100 players are seeded**: `player-001@example.com` … `player-100@example.com`, members of
    `staging-club`, all with `SEED_OWNER_PASSWORD` (already in staging and in the laptop's `.env`).
-   The seed gains `SEED_PLAYERS=200` and, like today, only adds what is missing, never in
+   The seed gains `SEED_PLAYERS=100` and, like today, only adds what is missing, never in
    production. Same pre-deploy step, so a push creates them
 7. **A canvas for the test, `load test`, with a 2-second cooldown**, made by the script at the
    start of each run (the staging tests already make their own canvases). Two seconds keeps players
@@ -81,7 +81,7 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
 
 ### What one player does (the k6 script)
 
-8. **Like a person, not a hammer** (Notion's draft):
+8. **Like a person, not a hammer** (Notion's draft), random cells and colours:
    - log in once (k6's setup step logs every player in before the clock starts, so login cost
      is measured on its own and does not pollute the placing numbers)
    - load `/me`, the canvas list and the board; get a WebSocket ticket, connect, subscribe
@@ -105,46 +105,33 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
     | "Placed to seen" p95 | under 500 ms |
     | Sockets dropped by the server (`ws_dropped_slow`) | 0 |
 
-11. **Steps: 10, 25, 50, 100, 200 players**, each a separate 3-minute run (1 minute ramp-up, 2
-    minutes held), one command each: `make loadtest players=50`. The first step that fails marks
-    the ceiling; then two or three runs in between narrow it (Notion: a binary search, stopped once
-    the gap is small). At most about 10 runs, about 30 minutes in all
+11. **Four runs: 10, 25, 50, 100 players**, each 3 minutes (1 minute ramp-up, 2 held), one command
+    each: `make loadtest players=50`. About 12 minutes of load in all. If a run fails, the next
+    ones are skipped: that level is the answer. No narrowing runs
 12. **While a run goes, I read staging**: the stats lines of both copies (`ws_clients`,
     `ws_dropped_slow`, `db_in_use`, `db_waited_total`, `bus_published`, `bus_received`,
     `redis_errors`), and Railway's CPU, memory and network graphs for `api`, `Postgres-staging`,
     `Redis-staging`. One row per run in the results table
-13. **If 200 players still pass**, the next step is not more players from the laptop (its own
-    connection would become the limit) but a shorter cooldown (1 second), which doubles the load per
-    player. Noted as a result, and the run stops there
-
-### Two kinds of run
-
-- **Players** (decisions 8–13): realistic people, random cells, waits between actions. Answers
-  "how many players at once?"
-- **Hammer**, after the player runs: no waits. Logged-in players fire requests back to back, and k6
-  raises the rate step by step (an arrival rate: 50, 100, 200, 400 … requests a second) until the
-  first error or p99 breaks. The mix: reading the board (the Redis cache), placing pixels (most get
-  the cooldown 429, which is the cheap early refusal, and is not an error), `/me`. Answers "how many
-  requests a second can the API take?" Same thresholds, 2 minutes per rate
+13. **What each run cost**, for the extrapolation: from Railway's metrics for that window (vCPU
+    and memory used by `api` ×2, `Postgres-staging`, `Redis-staging`, and the egress) × Railway's
+    prices (vCPU \$20 per month, memory \$10 per GB-month, egress \$0.05 per GB), cross-checked the
+    next day against the Usage page. The table gets "cost per run" and "cost per player-hour"
 
 ### The cost cap
 
-- **Budget for all of Step 17: under \$5** (the owner's call). Railway bills CPU by the minute
-  (about \$0.0005 per vCPU-minute) and egress at \$0.05 per GB. The cost that grows fastest is the
-  fan-out: with N players placing every ~2.5 s, about N × N / 2.5 messages a second go out
-- **Estimates per 3-minute run:** 100 players ≈ 0.1 GB, 200 ≈ 0.4 GB, 500 ≈ 2.5 GB (≈ \$0.13).
-  CPU stays at cents. So the money cap is far away; **the hard caps are 500 players and 2,000
-  requests a second**, written into the script (it refuses more), because past those the laptop's
-  own connection is the limit, not Rail Canvas
+- **The whole step stays far under \$5**: four short runs, about 12 minutes of load. Estimated egress
+  for the 100-player run ≈ 0.1 GB (\$0.005); CPU and memory a few cents. **The script refuses more
+  than 100 players**, so a typo cannot start a big run
 - **Railway's usage limit (\$7) still stops production too** if the month's total reaches it. Before
   the first run the owner looks at the Usage page; if the month is already near \$5, raise the limit
   for the day
 
 ### Results
 
-14. **The results table lives in this file and in Notion's Step 17**: players, p95, p99, errors,
-    placed-to-seen p95, API CPU and memory per copy, Postgres connections in use, egress, pass or
-    fail, and one line on what gave out. Step 18's README quotes the conclusion
+14. **The results table lives in this file and in Notion's Step 17**: players, requests a second,
+    p95, p99, errors, placed-to-seen p95, API CPU and memory per copy, Postgres connections in use,
+    egress, cost of the run, pass or fail. Then the extrapolation: cost per player-hour, and which
+    measure grows fastest (the first to run out past 100). Step 18's README quotes it
 
 ## Cost
 
@@ -180,16 +167,16 @@ CLAUDE.md (a Load test section), .env.example
 
 1. Build and test locally (the switch, the seed, the script at 3 players against a local API)
 2. Show the owner. Then, with the owner's OK, merge into `staging` and push: staging gets two API
-   copies, the switch and 200 players; the staging tests run as usual
-3. **The runs, together with the owner** (about 30 minutes): 10, 25, 50, 100, 200 players, then the
-   narrowing. I read the stats and the graphs during each run and fill in the table
+   copies, the switch and 100 players; the staging tests run as usual
+3. **The runs, together with the owner** (about 20 minutes): 10, 25, 50, 100 players. I read the
+   stats and the graphs during each run and fill in the table, with each run's cost
 4. Results into this file and Notion; release pull request `staging` → `main` for the code
    (production gets the switch's refusal and nothing else: no load test ever touches it)
 5. Notion: tick Step 17. STATUS updated
 
 ## Out of scope
 
-Testing production (never), a distributed test from several machines or regions, testing the
+Testing production (never), more than 100 players, a no-wait "hammer" run, a distributed test from several machines or regions, testing the
 template upload or timelapse paths under load (they are rare actions), autoscaling, changing code to
 pass a threshold (a fix would be its own step, after the result is in).
 
@@ -207,5 +194,5 @@ pass a threshold (a fix would be its own step, after the result is in).
 
 - Thresholds: mine for latency; **errors must be zero**
 - Logins are real, one token per player
-- Under \$5 for the whole step; hard caps 500 players and 2,000 requests a second
-- Both kinds of run: players, then hammer
+- The question is 100 players and what they cost, measured at 10, 25, 50, 100; no ceiling hunt, no
+  hammer run (a later step if wanted). The script refuses more than 100 players
