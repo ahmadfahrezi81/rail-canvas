@@ -15,7 +15,7 @@ export default defineRailway((ctx) => {
   const Redis = redis(prod ? "Redis" : "Redis-staging", { region: "asia-southeast1-eqsg3a" });
 
   // Template images (Step 8). Private; the API signs URLs. Region is fixed for good: Singapore, beside the API.
-  const templates = bucket("templates", { region: "sin" });
+  const templates = bucket(prod ? "templates" : "templates-staging", { region: "sin" });
   const api = service("api", {
     // checkSuites is "Wait for CI": deploy only once the CI run on main is green.
     source: repo,
