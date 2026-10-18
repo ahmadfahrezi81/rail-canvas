@@ -76,8 +76,7 @@ export default defineRailway(() => {
   });
   const cleanup = service("cleanup", {
     source: github("ahmadfahrezi81/rail-canvas", { branch: "main", checkSuites: true }),
-    // Dry run first: it counts and deletes nothing until the owner has read its counts.
-    start: "/app/cli cleanup -dry-run",
+    start: "/app/cli cleanup",
     // An hour after the backup, so last night's dump holds everything this deletes.
     deploy: { cronSchedule: "0 20 * * *", restartPolicyType: "NEVER" },
     replicas: { "asia-southeast1-eqsg3a": 1 },
