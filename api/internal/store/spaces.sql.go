@@ -67,6 +67,22 @@ func (q *Queries) GetMemberRole(ctx context.Context, arg GetMemberRoleParams) (s
 	return role, err
 }
 
+const getSpaceBySlug = `-- name: GetSpaceBySlug :one
+SELECT id, name, slug, created_at FROM spaces WHERE slug = $1
+`
+
+func (q *Queries) GetSpaceBySlug(ctx context.Context, slug string) (Space, error) {
+	row := q.db.QueryRow(ctx, getSpaceBySlug, slug)
+	var i Space
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listUserSpaces = `-- name: ListUserSpaces :many
 SELECT s.id, s.name, s.slug, m.role
 FROM space_members m

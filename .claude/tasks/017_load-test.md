@@ -1,6 +1,8 @@
 # Task 017 — A k6 load test from the laptop against staging: what 100 players need, and what they cost
 
-**Status: draft 2026-10-18, sanity-checked the same day (below), waiting for the owner's review.**
+**Status: approved 2026-10-18 after two sanity checks. Built and tried locally (3 players against a
+local API: 54 pixels, 0 errors, p95 30 ms, placed-to-seen p95 35 ms; production's URL and 101
+players refused).**
 
 Plan: [Rail Canvas, Step 17](https://app.notion.com/p/3ee95a71540581c8af9ac997375758e9) and its
 "Load test" section (the 2026-10-04 draft: real-player flows, ramp slowly, pass or fail written down
@@ -75,7 +77,7 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
      at 100 players, about 40 pixels a second × 100 sockets ≈ 4,000 messages a second, ~0.6 MB/s. If
      the laptop or the Wi-Fi gives out first, that is a limit of the test, not of Rail Canvas; the
      run shows it (k6's own errors, dropped sockets on the laptop side while the API stays calm)
-   - **All players share one IP**, which the login and signup limits would throttle (decision 5)
+   - **All players share one IP**, which the login limit throttles: hence one paced login (decision 5)
 3. **Only staging is ever hammered.** The script refuses any URL that is not staging's, like the
    staging tests do
 
@@ -84,10 +86,11 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
 4. **Staging runs two API copies during the test**, like production, so the test also covers the
    cross-copy WebSocket path (Step 14). `.railway/railway.ts`: staging's `api` replicas 2. It stays
    at 2 afterwards (about \$0.50 a month) so staging keeps matching production
-5. **The per-IP limits get a staging-only switch.** A new variable `RATE_LIMITS=relaxed` multiplies
-   the login, signup and join limits by 100. **The API refuses to start with it in production**
-   (checked at boot from `RAILWAY_ENVIRONMENT_NAME`), so it can never weaken production by
-   accident. Set on staging's `api` in the file, so it is visible and reviewed
+5. **No limit is loosened** (changed in the last sanity check, 2026-10-18): sessions last 30 days, so
+   `make loadtest-login` logs the players in **once**, paced under the per-IP login limit (20 at
+   once, then one every 3 s: about 4 minutes for 100), and every run reuses those tokens from the
+   git-ignored `ops/loadtest/.tokens.json`. No API code exists for the load test, so nothing in it
+   can ever weaken production
 6. **100 players are seeded**: `player-001@example.com` … `player-100@example.com`, members of
    `staging-club`, all with `SEED_OWNER_PASSWORD` (already in staging and in the laptop's `.env`).
    The seed gains `SEED_PLAYERS=100` and, like today, only adds what is missing, never in
@@ -102,13 +105,11 @@ Tokopedia and Shopee rehearse their big sale days this way. The lessons here:
   session token (an opaque bearer token, checked live against the database on every request, not a
   JWT). That check is part of every request in production, so it stays in the test; a bypass would
   measure a different system
-- Logins happen once per player, in k6's setup step, before the clock starts
+- Logins happen once per player, before any run (decision 5), not on the clock
 
 ### What one player does (the k6 script)
 
 8. **Like a person, not a hammer** (Notion's draft), random cells and colours:
-   - log in once (k6's setup step logs every player in before the clock starts, so login cost
-     is measured on its own and does not pollute the placing numbers)
    - load `/me`, the canvas list and the board; get a WebSocket ticket, connect, subscribe
    - then loop: wait 1–3 seconds (random), place a pixel at a random cell in a random colour; about
      one loop in 20 reloads the board instead (as a page refresh would)
@@ -168,21 +169,18 @@ staging: about \$0.50 a month.
 ## Files
 
 ```
-ops/loadtest/script.js          # the k6 player: login in setup, the loop, "placed to seen"
-ops/loadtest/README.md          # how to run it, what each measure means
-Makefile                        # make loadtest players=N (k6 in Docker, reads the laptop's .env)
-api/internal/config/config.go   # RATE_LIMITS=relaxed, refused in production
-api/internal/handler/server.go  # the limits read the switch
-api/internal/service/seed.go    # SEED_PLAYERS
-api/cmd/cli/seed.go             # passes it on
-.railway/railway.ts             # staging: api replicas 2, RATE_LIMITS, SEED_PLAYERS
+ops/loadtest/script.js          # the k6 player: the visit, the loop, "placed to seen", the summary
+ops/loadtest/login.sh           # logs the players in once, paced; writes .tokens.json
+ops/loadtest/README.md          # how to run it, what each line of the summary means
+Makefile                        # make loadtest-login, make loadtest players=N (k6 2.3.0 in Docker)
+api/internal/service/seed.go    # SeedPlayers
+api/cmd/cli/seed.go             # SEED_PLAYERS
+.railway/railway.ts             # staging: api replicas 2, SEED_PLAYERS=100
 CLAUDE.md (a Load test section), .env.example
 ```
 
 ## Tests
 
-- **The switch:** `RATE_LIMITS=relaxed` with `RAILWAY_ENVIRONMENT_NAME=production` stops the API at
-  boot; elsewhere the limits are 100 times looser; unset, they are as today
 - **The seed:** `SEED_PLAYERS=3` on a fresh database adds three players who can log in and are
   members; run again, it adds nothing; in production, nothing
 - **The script, at 3 players against a local API** before any run on staging: it logs in, places,

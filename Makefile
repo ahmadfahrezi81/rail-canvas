@@ -14,7 +14,7 @@ ENV := set -a; [ -f .env ] && . ./.env; set +a;
 TEST_URL = $${MIGRATE_DATABASE_URL%/*}/rail_canvas_test
 
 .PHONY: help dev test test-db vet fmt check web-dev web-build generate build docker-build docker-run \
-	migrate-new migrate-up migrate-status db-app-password db-test-setup
+	migrate-new migrate-up migrate-status db-app-password db-test-setup loadtest-login loadtest
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -75,3 +75,17 @@ db-test-setup: ## Create rail_canvas_test if missing and migrate it
 	@$(ENV) psql "$$MIGRATE_DATABASE_URL" -X -q -A -t -c "SELECT 1 FROM pg_database WHERE datname = 'rail_canvas_test'" | grep -q 1 \
 		|| psql "$$MIGRATE_DATABASE_URL" -X -q -c "CREATE DATABASE rail_canvas_test"
 	@$(ENV) cd api && $(GOOSE) -dir $(MIGRATIONS) postgres "$(TEST_URL)" up
+
+# Load test (Step 17, ops/loadtest/): only ever against staging. k6 runs in Docker; nothing installed.
+STAGING_URL ?= https://api-staging-9e8a.up.railway.app
+K6 := grafana/k6:2.3.0
+
+loadtest-login: ## Log the seeded players in once (about 4 min for 100); tokens last 30 days
+	@$(ENV) STAGING_URL=$(STAGING_URL) PLAYERS=$${players:-100} ops/loadtest/login.sh
+
+loadtest: ## One 3-minute run against staging: make loadtest players=50 (at most 100)
+	@test -n "$(players)" || (echo "usage: make loadtest players=N"; exit 1)
+	@mkdir -p ops/loadtest/results
+	docker run --rm -v "$$PWD/ops/loadtest:/lt" -w /lt -e STAGING_URL=$(STAGING_URL) -e PLAYERS=$(players) \
+		-e RAMP -e HOLD -e VISIT_MS $(K6) run --quiet script.js
+

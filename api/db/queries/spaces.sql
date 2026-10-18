@@ -17,3 +17,6 @@ FROM space_members m
 JOIN spaces s ON s.id = m.space_id
 WHERE m.user_id = sqlc.arg(user_id)
 ORDER BY m.joined_at;
+
+-- name: GetSpaceBySlug :one
+SELECT * FROM spaces WHERE slug = sqlc.arg(slug);

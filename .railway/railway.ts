@@ -25,7 +25,8 @@ export default defineRailway((ctx) => {
     preDeploy: "/app/cli predeploy",
     healthcheck: "/health",
     // Two copies: WebSockets reach each other through Redis pub/sub (realtime.Bus).
-    replicas: { "asia-southeast1-eqsg3a": prod ? 2 : 1 },
+    // Staging matches production's two copies since Step 17's load test.
+    replicas: { "asia-southeast1-eqsg3a": 2 },
     networking: { privateNetworkEndpoint: "rail-canvas" },
     env: {
       APP_DB_PASSWORD: preserve(),
@@ -44,6 +45,8 @@ export default defineRailway((ctx) => {
             MIGRATE_DATABASE_URL: Postgres.env.DATABASE_URL,
             // The fake data's owner, made by the pre-deploy seed. Set by the owner.
             SEED_OWNER_PASSWORD: preserve(),
+            // The load test's players (Step 17), same password; only missing ones are made.
+            SEED_PLAYERS: "100",
           }),
       S3_BUCKET: ref(templates, "BUCKET"),
       S3_ACCESS_KEY_ID: ref(templates, "ACCESS_KEY_ID"),

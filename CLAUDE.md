@@ -74,6 +74,7 @@ Learning is the point. The structure matters more than the feature list.
 │       └── components/       # use hooks, never the client
 ├── Dockerfile                # one image, every binary under /app/
 ├── ops/backup/               # nightly pg_dump to R2 (cron service "backup"), and restore.sh
+├── ops/loadtest/             # k6 load test against staging, run from the laptop (Step 17)
 ├── functions/webhook/        # the Telegram bot: a Railway Function (Bun, one file, no packages) and its bun tests
 ├── .railway/railway.ts       # Railway project as code: services, settings, variables
 ├── package.json              # only the Railway SDK, so .railway/railway.ts can import it
@@ -81,7 +82,7 @@ Learning is the point. The structure matters more than the feature list.
 └── .claude/tasks/            # one plan per step
 ```
 
-`functions/webhook/` is the Telegram bot, a Railway Function (Step 15). Planned: `ops/loadtest/` (Step 17). The full tree is in Notion under "Repo and conventions".
+`functions/webhook/` is the Telegram bot, a Railway Function (Step 15). `ops/loadtest/` is the load test (Step 17). The full tree is in Notion under "Repo and conventions".
 
 ---
 
@@ -169,6 +170,19 @@ Joining later: timeout and body size limit.
 - **`/webhooks/bot/*` is for our Function, not browsers.** `X-Webhook-Secret` is compared with `WEBHOOK_SECRET` by SHA-256 in constant time; `/link` is rate limited per Telegram account
 - **Colour names live in the palette** (`Palette.Names`, `Palette.Color`): the bot sends a word or an index, the API resolves it
 - **Test the Function in Railway's own image**, as CI does: `docker run --rm -v "$PWD/functions/webhook:/src:ro" -w /src --entrypoint bun ghcr.io/railwayapp/function-bun:1.4.0 test`. The server starts only under `import.meta.main`, so tests import `handle` with a fake API
+
+## Load test
+
+`ops/loadtest/` (Step 17): k6 in Docker from the laptop, **only against staging** (the script and
+`login.sh` refuse anything else). `make loadtest-login` logs the seeded players
+(`player-001@example.com` …, `SEED_PLAYERS` on staging) in once, paced under the per-IP login limit;
+their session tokens last 30 days in the git-ignored `ops/loadtest/.tokens.json`. `make loadtest
+players=N` is one 3-minute run (at most 100 players: a billed run cannot start by typo): real
+tokens, random pixels on a fresh 2-second-cooldown canvas, one socket per player, and
+`placed_to_seen` from `POST …/pixels` to the player's own socket. Thresholds: zero errors (the
+cooldown's 429 is not one), p95 < 300 ms, p99 < 800 ms, placed-to-seen p95 < 500 ms. Each run's
+cost comes from `railway metrics --since … --until …` minus the minutes before it. No API code
+exists for the load test: logins are not bypassed and no limit is loosened.
 
 ## Redis
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -83,6 +84,18 @@ func seedCmd(optional bool) error {
 		fmt.Printf("seed: created space %s with owner %s\n", service.SeedSpaceSlug, service.SeedOwnerEmail)
 	} else {
 		fmt.Println("seed: users exist, nothing to do")
+	}
+	// The load test's players (Step 17); only the missing ones are made.
+	if v := os.Getenv("SEED_PLAYERS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 999 {
+			return fmt.Errorf("seed: SEED_PLAYERS must be 0 to 999, got %q", v)
+		}
+		made, err := service.SeedPlayers(ctx, pool, n, password)
+		if err != nil {
+			return fmt.Errorf("seed players: %w", err)
+		}
+		fmt.Printf("seed: %d players, %d new\n", n, made)
 	}
 	return nil
 }
