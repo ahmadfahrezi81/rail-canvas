@@ -1,6 +1,6 @@
 # Status — where we are
 
-**Updated 2026-10-18 (evening).** Update this file at the end of every session.
+**Updated 2026-10-20.** Update this file at the end of every session.
 
 ## Done and live
 
@@ -24,6 +24,7 @@
 | 15 | Telegram bot as a Railway Function (`bot`, Bun, `functions/webhook/index.ts`): `/link CODE` with a one-time code from the canvas page, `/place X Y COLOUR` through the API with the web's cooldown, `source = 'bot'`. Live test with fake updates passed 2026-10-18; no real Telegram bot connected yet (runbook) | 015 |
 | 16 | `staging` environment before production: branch `staging` → staging (`Postgres-staging`, `Redis-staging`, `templates-staging`, seeded `staging-club`), release PR `staging` → `main` (merge commit; CI + `staging` status from `staging-tests.yml` required). `/health` reports the commit. Palette `place32` shipped through it. PR environment skipped | 016 |
 | 17 | k6 load test from the laptop against staging (`ops/loadtest/`, `make loadtest players=N`, at most 100). 10/25/50/100 players all pass with zero errors; at 100: p95 162 ms, p99 289 ms, placed-to-seen p95 241 ms, API 0.2 vCPU peak. About \$0.15 an hour at 100 players, ~95% egress (fan-out). Full breakdown: Notion, "Load test results (reference)". Staging runs 2 API copies and 100 seeded players | 017 |
+| 18 | `README.md`: architecture diagram (Mermaid), how a change ships, the bill from `railway usage` (\$0.62 for 2026-10-04 to 10-20, estimate \$1.40/month), the load test headline, what broke and what cost more or less than expected. Notion has a Conclusion | 018 |
 
 - API: https://rail-canvas-production.up.railway.app (Railway service `api`, region Singapore)
 - Site: https://rail-canvas.pages.dev (Cloudflare Pages, root `web`)
@@ -33,8 +34,9 @@
 
 ## Next
 
-1. **Step 18** (task 018 to write): the README, architecture diagram, Usage page numbers, what was learned
-2. **Optional:** connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
+**The project is finished** (Steps 1–18). Optional, if ever:
+
+- Connect a real Telegram bot (BotFather, `setWebhook`; `docs/runbook.md`)
 
 **Release away from :50–:05 UTC, every time.** Each merge into `main` redeploys every production
 service, the cron ones included; a cron service mid-deploy at the full hour skips that run (10:00 UTC on 2026-10-17
